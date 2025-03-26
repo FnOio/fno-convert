@@ -1,0 +1,13 @@
+digraph cluster_ {
+	graph [label=_]
+	20 [label="#20
+encoder = joblib.load('models/encoder.pkl')
+final_rf_model = joblib.load('models/rf_model.pkl')
+final_nb_model = joblib.load('models/nb_model.pkl')
+final_svm_model = joblib.load('models/svm_model.pkl')
+data_dict = {'symptom_index': symptom_index(), 'predictions_classes':
+    encoder.classes_}
+print(predictDisease(symptoms, data_dict, final_rf_model, final_nb_model,
+    final_svm_model))
+"]
+}

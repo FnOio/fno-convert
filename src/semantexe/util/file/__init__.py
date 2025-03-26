@@ -32,7 +32,7 @@ def move_file(g: ExecutableGraph, mapping, imp, src, dest):
                 
                 # create new implementation
                 if name.endswith(".py"):
-                    new_imp = FileMapper.uri(name.removesuffix(".py"), dest_file)
+                    new_imp = FileMapper.uri(dest_file)
                 else:
                     new_imp = PythonMapper.uri(name, m_name, p_name, dest_file)
             

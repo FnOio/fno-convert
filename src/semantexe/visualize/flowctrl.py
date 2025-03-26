@@ -101,7 +101,7 @@ class InputWidget(QWidget):
             # TODO error alert pick executor first
             pass
         exe = self.executors[self.executor.currentText()](self.function.g)
-        pg = exe.provenance(self.function)
+        pg, _ = exe.provenance(self.function)
         
         pg.serialize("graphs/prov/prov.ttl", format="turtle")
 

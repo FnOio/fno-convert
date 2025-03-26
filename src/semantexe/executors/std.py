@@ -13,7 +13,7 @@ from ..prefix import Prefix
 
 class Executor(ABC):
     
-    def __init__(self, g: ExecutableGraph, logger: ProvLogger = ProvLogger()):
+    def __init__(self, g: ExecutableGraph):
         self.g = g
         self.depth = 0
         self.handled = []
@@ -21,7 +21,7 @@ class Executor(ABC):
         self.pg = None
         self.fun = None
         
-        self.logger = logger
+        self.logger = ProvLogger()
     
     def execute(self, fun: Function, *args, **kwargs):
         self.logger.append(fun)
@@ -32,8 +32,7 @@ class Executor(ABC):
                 out = self.handle(fun, *args, **kwargs)
                 fun.prov.endedAt = datetime.now()
                 self.logger.pop()
-                self.fun_provenance(fun)
-                return
+                return self.fun_provenance(fun)
             except Exception as e:
                 print(f"Error when executing {fun.fun_uri} with executor {self.__class__.__name__}: {e}")
                 traceback.print_exc()
@@ -50,8 +49,7 @@ class Executor(ABC):
                         out = self.execute_with_mapping(fun, *args, **kwargs)
                         fun.prov.endedAt = datetime.now()
                         self.logger.pop()
-                        self.fun_provenance(fun)
-                        return
+                        return self.fun_provenance(fun)
                     except Exception as e:
                         print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
                         traceback.print_exc()
@@ -67,8 +65,7 @@ class Executor(ABC):
                         out = self.execute_with_mapping(fun, *args, **kwargs)
                         fun.prov.endedAt = datetime.now()
                         self.logger.pop()
-                        self.fun_provenance(fun)
-                        return
+                        return self.fun_provenance(fun)
                     except Exception as e:
                         print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
                         traceback.print_exc()
@@ -81,44 +78,40 @@ class Executor(ABC):
                     out = self.execute_with_mapping(fun, *args, **kwargs)
                     fun.prov.endedAt = datetime.now()
                     self.logger.pop()
-                    self.fun_provenance(fun)
-                    return
+                    return self.fun_provenance(fun)
                 except Exception as e:
                     print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
                     traceback.print_exc()
                     pass
         
+        # Try an alternative executor
+        try:
+            self.alt_executor(fun)
+            self.logger.pop()
+            return self.fun_provenance(fun)
+        except Exception as e:
+            pass
+        
         # If no suitable mapping and implementation can be found, try executing a composition
         if fun.comp_uri is not None:
             internal = fun.setInternal(True)
             if internal:
-                try:
-                    fun.prov.startedAt = datetime.now()
-                    fun.comp.execute(self)
-                    fun.prov.endedAt = datetime.now()
-                    self.logger.pop()
-                    self.fun_provenance(fun)
-                    return
-                except Exception as e:
-                    print(f"Error when executing Composition {fun.comp_uri} with executor {self.__class__.__name__}: {e}")
-                    traceback.print_exc()
-                    self.alt_executor(fun)
-                    self.logger.pop()
-                    return
+                fun.prov.startedAt = datetime.now()
+                fun.comp.execute(self)
+                fun.prov.endedAt = datetime.now()
+                self.logger.pop()
+                return self.fun_provenance(fun)
         
-        else:
-            self.alt_executor(fun)
-            self.logger.pop()
-            self.fun_provenance(fun)
-            return
+        raise Exception(f"{self.__class__.__name__} is unable to execute {fun.name}.")
     
     def execute_with_mapping(self, fun: Function, *args, **kwargs):
         # Change workdir if toplevel function
         if self.depth == 0:
-            file = self.g.get_file(fun.imp)
-            file_dir = os.path.dirname(file)
             current_wd = os.getcwd()
-            os.chdir(file_dir)
+            file = self.g.get_file(fun.imp)
+            if file:
+                file_dir = os.path.dirname(file)
+                os.chdir(file_dir)
         
         self.map(fun)
 
@@ -138,18 +131,27 @@ class Executor(ABC):
     def handle(self, fun: Function, *args, **kwargs):
         return self.handled[fun.fun_uri](fun, *args, **kwargs)
     
-    def provenance(self, fun: Function, *args, **kwargs):
+    def provenance(self, fun: Function, *args, logger: ProvLogger = None, **kwargs):
         # initialize provenance graph
         self.fun = fun
         self.pg = ExecutableGraph()
         
         # Execute the function
-        self.logger.start()
-        self.execute(fun, *args, **kwargs)
-        self.logger.stop()
+        if logger:
+            prev_logger = self.logger
+            self.logger = logger
+        else:
+            self.logger.start()
+            
+        exe_uri = self.execute(fun, *args, **kwargs)
+        
+        if not logger:
+            self.logger.stop()
+        else:
+            self.logger = prev_logger
         
         # Return provenance graph
-        return self.pg
+        return self.pg, exe_uri
     
     def fun_provenance(self, fun: Function):
         fun_uri = fun.call_uri if isinstance(fun, AppliedFunction) else fun.fun_uri
@@ -245,7 +247,7 @@ class Executor(ABC):
             LDESBuidlder.fileES(self.pg, event_uri, stream_uri, file_uri, timestamp)
         
             # Event provenance
-            ProvBuilder.generationEvent(self.pg, event_uri, exe_uri, file_uri)            
+            ProvBuilder.generationEvent(self.pg, event_uri, exe_uri, file_uri)
         
         for file, timestamp in modified:
             # Create a file modified event

@@ -33,6 +33,7 @@ class ProvBuilder:
         g.add((event_uri, RDF.type, Prefix.prov().Usage))
         g.add((event_uri, Prefix.prov().entity, file_uri))
         g.add((exe_uri, Prefix.prov().qualifiedUsage, event_uri))
+        ProvBuilder.used(g, exe_uri, file_uri)
     
     @staticmethod
     def wasGeneratedBy(g, ent, act, time=None):
@@ -45,6 +46,7 @@ class ProvBuilder:
         g.add((event_uri, RDF.type, Prefix.prov().Generation))
         g.add((event_uri, Prefix.prov().activity, exe_uri))
         g.add((file_uri, Prefix.prov().qualifiedGeneration, event_uri))
+        ProvBuilder.wasGeneratedBy(g, file_uri, exe_uri)
     
     @staticmethod
     def wasInformedBy(g, act1, act2):

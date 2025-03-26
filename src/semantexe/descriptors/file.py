@@ -1,4 +1,5 @@
 from ..graph import ExecutableGraph
+from ..mappers import FileMapper
 from .resource import AbstractResourceDescriptor
 
 from pathlib import Path
@@ -72,8 +73,7 @@ class FileDescriptor(AbstractResourceDescriptor):
                 try:
                     return self._start.describe_file(resource)
                 except ValueError as e:
-                    print(e)
-                    return None
+                    return FileMapper.uri(resource)
         except:
             pass
         

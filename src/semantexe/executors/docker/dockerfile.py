@@ -9,7 +9,7 @@ from ..executeable import Function, AppliedFunction
 from ..std import Executor
 
 import os, subprocess, docker
-from pathlib import Path
+from pathspec import PathSpec
 
 def docker_build(dirpath, tag):
     
@@ -85,6 +85,7 @@ class DockerfileExecutor(Executor):
         tag = fun["tag"].get()
         filepath = self.g.get_file(fun.imp)
         self.dir = os.path.dirname(filepath)
+        self.load_dockerignore()
         
         # Initiate metadata
         self.workdir = ''
@@ -104,7 +105,7 @@ class DockerfileExecutor(Executor):
         fun.output.set(self.image_uri)
     
     def provenance(self, fun: Function, *args, **kwargs):
-        super().provenance(fun, *args, **kwargs)
+        _, exe_uri = super().provenance(fun, *args, **kwargs)
         
         ProvBuilder.derivedFrom(self.pg, self.image_uri, self.fun.imp)
         
@@ -129,7 +130,7 @@ class DockerfileExecutor(Executor):
                 default_input = ' '.join(self.entrypoint_params[1:])
                 DockerBuilder.defaultInput(self.pg, self.image_uri, default_input)"""
                 
-        return self.pg
+        return self.pg, exe_uri
     
     def no_execution(self, fun: Function, *args, **kwargs):
         pass
@@ -143,29 +144,24 @@ class DockerfileExecutor(Executor):
         src_dir = fun[Prefix.do().copySrc].value.replace('.', self.dir)
         dest_dir = fun[Prefix.do().copyDest].value.replace('.', self.workdir)
         
-        dir_path = Path(src_dir)
         # recursively find all files in all subdirectories
         copied_uris = set()
-        for file in dir_path.rglob('*'):
-            if file.is_file():
-                file = str(file)
-                # Do not describe the Dockerfile again
-                if not file.endswith("Dockerfile"):
-                    try:
-                        self.fileDescriptor.describe_resource(file)
-                    except ValueError as e:
-                        pass
-                    
-                    for uri in [ uri for uri in self.pg.functions() if uri not in copied_uris]:
-                        copied_uris.add(uri)
-                        # Get the original implementation **Just one imp expected**
-                        for mapping, imp in self.pg.fun_to_imp(uri):
-                            # Copy the implementation
-                            imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
-                            if imp_copy:
-                                # Provenance
-                                ProvBuilder.alternateOf(self.pg, imp_copy, imp)
-                                DockerBuilder.includes(self.pg, self.image_uri, imp_copy)
+        for file in self.iterate_files():
+            try:
+                self.fileDescriptor.describe_resource(file)
+            except ValueError as e:
+                pass
+            
+            for uri in [ uri for uri in self.pg.functions() if uri not in copied_uris]:
+                copied_uris.add(uri)
+                # Get the original implementation **Just one imp expected**
+                for mapping, imp in self.pg.fun_to_imp(uri):
+                    # Copy the implementation
+                    imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
+                    if imp_copy:
+                        # Provenance
+                        ProvBuilder.alternateOf(self.pg, imp_copy, imp)
+                        DockerBuilder.includes(self.pg, self.image_uri, imp_copy)
 
     def execute_workdir(self, fun: Function, *args, **kwargs):
         # Set workdir
@@ -189,9 +185,25 @@ class DockerfileExecutor(Executor):
     def alt_executor(self, fun):
         # Use the python executor to capture provenance locally
         from ..python import PythonExecutor
-        executor = PythonExecutor(self.g, self.logger)
+        executor = PythonExecutor(self.g)
         
-        executor.execute(fun)
+        pg, exe_uri = executor.provenance(fun, logger=self.logger)
+
+        self.pg += pg
+        fun.prov.informed.append(exe_uri)
+
+    def load_dockerignore(self):
+        patterns = ['Dockerfile', '.dockerignore']
+        if os.path.exists('.dockerignore'):
+            with open('.dockerignore', 'r') as file:
+                patterns.extend(file.readlines())
+            self.ignore = PathSpec.from_lines('gitwildmatch', patterns)
+        else:
+            self.ignore = None
         
-        # TODO link provenance
-        # pg, exe_uri = executor.provenance()
+    def iterate_files(self):
+        for root, _, files in os.walk('.'):            
+            for file in files:
+                file_path = os.path.relpath(os.path.join(root, file), '.')
+                if not self.ignore or not self.ignore.match_file(file_path):
+                    yield file_path
