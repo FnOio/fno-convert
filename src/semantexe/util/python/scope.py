@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Set
 
 
 @dataclass
@@ -14,6 +14,7 @@ class ScopeState:
     var_types: Dict = field(default_factory=dict)
     returns: List = field(default_factory=list)
     mappings: List = field(default_factory=list)
-    iterators: Dict = field(default_factory=dict)
-    conditions: Dict = field(default_factory=dict)
+    iterators: Set = field(default_factory=set)
+    conditions: Set = field(default_factory=set)
+    block_order: Dict = field(default_factory=dict)
     prev_function: Tuple = (None, None)

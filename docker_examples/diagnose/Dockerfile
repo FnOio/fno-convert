@@ -11,7 +11,8 @@ COPY . .
 RUN find . -type f -exec chmod 0744 {} \;
 
 # Train and save the models
-RUN python ./predict.py
+RUN pip install -r requirements.txt
+RUN python3 train.py
 
 # run the command on container startup
-ENTRYPOINT [ "python", "train.py" ]
+ENTRYPOINT [ "python", "predict.py" ]

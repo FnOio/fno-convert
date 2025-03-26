@@ -1,5 +1,5 @@
-digraph clustertrain {
-	graph [label=train]
+digraph cluster_ {
+	graph [label=_]
 	3 [label="#3
 DATA_PATH = 'dataset/Training.csv'
 data = read_csv(DATA_PATH).dropna(axis=1)

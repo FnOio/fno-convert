@@ -58,7 +58,8 @@ class Composition:
             for source in sources:
                 priority = source[1]
                 if priority not in self.priorities:
-                    self.priorities[priority] = self.mappings[target]
+                    self.priorities[priority] = set()     
+                self.priorities[priority].add(self.mappings[target])
         
         ### EXECUTION START ###
         self.start = g.get_start(comp)
@@ -69,6 +70,7 @@ class Composition:
         while call is not None:
             # Get the FnO Function Executeable
             fun = self.functions[call]
+            fun.prov.informedBy = self.rep
             # Fetch inputs from mappings
             self.ingest(fun)
             # Execute
@@ -85,7 +87,7 @@ class Composition:
             if self.rep.output in self.mappings:
                 self.mappings[self.rep.output].execute()
             if self.rep.self_output is not None:
-                self.rep.self_output.set(self.rep.self_output.get())
+                self.rep.self_output.set(self.rep.self_input.get())
         
     
     def ingest(self, fun):
@@ -107,8 +109,8 @@ class Function:
     def __init__(self, g: ExecutableGraph, fun: URIRef, map: URIRef = None, imp: URIRef = None, internal=False) -> None:
         self.fun_uri = fun
         self.name = g.get_name(fun)
-        self.map = map
         self.imp = imp
+        self._map = None
         self.g = g
 
         ### TERMINALS ###
@@ -119,23 +121,23 @@ class Function:
         self.output = None
         
         self.terminals.update({ par: Terminal(self, par, g.get_predicate(par), 
-                                              type=g.get_param_type(par), 
-                                              param_mapping=ParameterMapping(g, fun, par)) for par in g.get_parameters(fun) })
+                                              type=g.get_param_type(par)) for par in g.get_parameters(fun) })
         
         if g.has_self(fun):
             uri = g.get_self(fun)
-            self.self_input = Terminal(self, uri, 'self', 
-                                       type=g.get_param_type(uri), 
-                                       param_mapping=ParameterMapping(g, fun, uri))
+            self.self_input = Terminal(self, uri, g.get_predicate(uri), 
+                                       type=g.get_param_type(uri))
             self.terminals[self.self_input.uri] = self.self_input
         if g.has_output(fun):
             uri = g.get_output(fun)
-            self.output = Terminal(self, uri, g.get_output_predicate(fun)[1], type=g.get_output_type(uri), is_output=True)
+            self.output = Terminal(self, uri, g.get_predicate(uri), type=g.get_output_type(uri), is_output=True)
             self.terminals[self.output.uri] = self.output
         if g.has_self_output(fun):
             uri = g.get_self_output(fun)
-            self.self_output = Terminal(self, uri, 'self_output', type=g.get_output_type(uri), is_output=True)
+            self.self_output = Terminal(self, uri, g.get_predicate(uri), type=g.get_output_type(uri), is_output=True)
             self.terminals[self.self_output.uri] = self.self_output
+        
+        self.map = map
         
         ### COMPOSITION ###
         
@@ -157,13 +159,26 @@ class Function:
                 self.internal = True
                 if self.internal and self.comp is None:
                     self.comp = Composition(self.g, self.comp_uri, self)
-                    print(f"Created composition for {self.name}")
             else:
                 self.internal = False
-                print(f"Function {self.name} has no composition available")
         else:
             self.internal = False
-
+        
+        return self.internal
+    
+    @property
+    def map(self):
+        return self._map
+    
+    @map.setter
+    def map(self, uri):
+        if uri != self._map:
+            self._map = uri
+            
+            # TODO support Mappings for outputs?
+            for terminal in self.inputs():
+                terminal.param_mapping = ParameterMapping(self.g, uri, terminal.uri)
+    
     def inputs(self) -> Set[Terminal]:
         return { self.terminals[id] for id in self.terminals if not self.terminals[id].is_output }
 
@@ -204,7 +219,6 @@ class AppliedFunction(Function):
         
         if g.has_composition(call):
             self.comp_uri = g.get_compositions(call, True)
-            self.setInternal(self.internal)
         
         self._next = None
         self.next, self.iterate, self.iftrue, self.iffalse = g.get_order(call)
@@ -225,18 +239,11 @@ class AppliedFunction(Function):
 
 class Provenance:
     
-    @property
-    def startedAt(self):
-        return self._startedAt
-    
-    @startedAt.setter
-    def startedAt(self, value):
-        self._startedAt = value
-    
-    @property
-    def endedAt(self):
-        return self._endedAt
-    
-    @endedAt.setter
-    def endedAt(self, value):
-        self._endedAt = value
+    def __init__(self):
+        self.informedBy = None
+        self.informed = []
+        self.startedAt = None
+        self.endedAt = None
+        self.msgs = []
+        self.files_created = []
+        self.files_modified = []

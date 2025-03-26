@@ -3,6 +3,7 @@ from .std import Executor
 from .store import MappingType
 from ..graph import ExecutableGraph
 from ..prefix import Prefix
+from ..util.python.script import CallableScript
 
 import importlib
 import importlib.util
@@ -86,24 +87,36 @@ class PythonExecutor(Executor):
             return Any
             
         return Any
+    
+    def __init__(self, g):
+        super().__init__(g)
+        
+        self.handled = { Prefix.base().setitem: self.handle_setitem }
+    
+    def handle_setitem(self, fun: Function, *args, **kwargs):
+        value = fun['a'].get()
+        key = fun['b'].get()
+        assign = fun['c'].get()
+        
+        value[key] = assign
+        
+        fun.output.set(value)     
         
     def accepts(self, mapping, imp):
         # TODO is the mapping OK based on the scope?
         return self.g.is_python(imp)
     
     def map(self, fun: Function):
-        # TODO what with file imp?
         # TODO use PythonMapper
         try:
-            fun.f_object = PythonExecutor.python_object(self.g, fun.imp)
+            if self.g.is_pythonfile(fun.imp):
+                file = self.g.get_file(fun.imp)
+                fun.f_object = CallableScript(file)
+            else:
+                fun.f_object = PythonExecutor.python_object(self.g, fun.imp)
         except Exception as e:
             print(f"Error while trying to get implementation from {fun.imp.split('#')[-1]}: {e}")
             fun.f_object = None
-
-    def execute(self, fun: Function, *args, **kwargs):
-        self.pg = ExecutableGraph()        
-        super().execute(fun, *args, **kwargs)
-        return self.pg
     
     def execute_function(self, fun: Function, *_args, **_keyargs):
         # Set input and output based on arguments
@@ -136,7 +149,7 @@ class PythonExecutor(Executor):
                     if not param.value_set:
                         if mapping.has_default:
                             param.set(mapping.default)
-                    value = param.get()
+                    value = param.get()                    
 
                     if mapping.get_type() == MappingType.VARPOSITIONAL:
                         vargs = value
@@ -174,22 +187,7 @@ class PythonExecutor(Executor):
                     print(f"\tvargs: {vargs}")
                     print(f"\tkeyargs: {",".join([f"{key}={arg}" for key, arg in keyargs.items()])}")
                     print(f"\tvkeyargs: {",".join([f"{key}={arg}" for key, arg in vkeyargs.items()])}")
-                    raise e
-    
-    def execute_applied(self, fun: AppliedFunction):
-        # Control flow
-        if fun.iterate is not None:
-            self.execute(fun)
-            if hasattr(fun, 'stop_iteration'):
-                fun._next = fun.next
-            else:
-                fun._next = fun.iterate
-        elif fun.iftrue is not None:
-            self.execute(fun)
-            fun._next = fun.iftrue if fun.output.value else fun.iffalse
-        else:
-            self.execute(fun)
-            fun._next = fun.next
+                    raise e        
     
     def alt_executor(self, fun: Function):
         raise Exception("No alternative executors")

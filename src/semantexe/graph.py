@@ -377,7 +377,7 @@ class ExecutableGraph(Graph):
         ]
         return result[0] if len(result) > 0 else None
 
-    def get_param_type(self, param) -> str:
+    def get_param_type(self, param):
         """
         Retrieves the type of a given parameter.
 
@@ -395,6 +395,7 @@ class ExecutableGraph(Graph):
                 }}
             ''', initNs=Prefix.NAMESPACES)
         ]
+        
         return result[0] if len(result) > 0 else Any
 
     def get_self(self, f) -> str:
@@ -804,8 +805,21 @@ class ExecutableGraph(Graph):
           return self.query(f'''ASK WHERE {{ 
                 <{comp}> fnoc:represnts ?file .
                 ?file a fnoi:PythonFile . }}''')
+    
+    def get_mapping(self, f, first=False):
+        f = self.check_call(f)
+        result = [
+            x['mapping']
+            for x in self.query(f'''
+                    SELECT ?mapping WHERE {{
+                        ?mapping fno:function <{f}> ;
+                                a fno:Mapping .
+                    }}''', initNs=Prefix.NAMESPACES)
+        ]
+        
+        return result[0] if first else result
      
-    def get_positional(self, f):
+    def get_positional(self, mapping):
           """
           Get positional parameters of a function.
 
@@ -816,26 +830,23 @@ class ExecutableGraph(Graph):
                list: A list of positional parameters.
           """
           try:
-               f = self.check_call(f)
                positional = sorted([
                     (x['index'].value, x['param'])
                     for x in self.query(f'''
                          SELECT ?index ?param WHERE {{
-                              ?mapping fno:function <{f}> ;
-                                        a fno:Mapping .
-                              ?mapping fno:parameterMapping ?posmapping .
+                              <{mapping}> fno:parameterMapping ?posmapping .
                               ?posmapping fnom:functionParameter ?param ;
                                         fnom:implementationParameterPosition ?index .
                               ?param fno:predicate ?pred .
-                              FILTER(?pred != <{to_uri(get_prefix(f), 'self')}>)
+                              FILTER(?pred != <{to_uri(get_prefix(mapping), 'self')}>)
                          }}''', initNs=Prefix.NAMESPACES)
                ], key=lambda x: x[0])
                return [pos[1] for pos in positional]
           except ParseException as e:
-               print(f"Error while parsing query when fetching positional parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching positional parameters for <{get_name(mapping)}>: <{e}>")
                return []
 
-    def get_keyword(self, f):
+    def get_keyword(self, mapping):
           """
           Get keyword parameters of a function.
 
@@ -846,23 +857,20 @@ class ExecutableGraph(Graph):
                list: A list of keyword parameters.
           """
           try:
-               f = self.check_call(f)
                return [
                     x['param']
                     for x in self.query(f'''
                          SELECT ?param WHERE {{
-                              ?mapping fno:function <{f}> ;
-                                        a fno:Mapping .
-                              ?mapping fno:parameterMapping ?keymapping .
+                              <{mapping}> fno:parameterMapping ?keymapping .
                               ?keymapping fnom:functionParameter ?param ;
                                         fnom:implementationProperty ?property .
                          }}''', initNs=Prefix.NAMESPACES)
                ]
           except ParseException as e:
-               print(f"Error while parsing query when fetching keyword parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching keyword parameters for <{get_name(mapping)}>: <{e}>")
                return []
 
-    def get_varpositional(self, f):
+    def get_varpositional(self, mapping):
           """
           Get variable positional parameters of a function.
 
@@ -873,24 +881,21 @@ class ExecutableGraph(Graph):
                str: The variable positional parameter.
           """
           try:
-               f = self.check_call(f)
                result = [
                     x['param']
                     for x in self.query(f'''
                          SELECT ?property ?param WHERE {{
-                              ?mapping fno:function <{f}> ;
-                                        a fno:Mapping .
-                              ?mapping fno:parameterMapping ?varmapping .
-                              ?varmapping a fnom:VarPositionalParameterMapping ;
+                              <{mapping}> fno:parameterMapping ?varmapping .
+                              ?varmapping a fnom:IndexMapping ;
                                         fnom:functionParameter ?param .
                          }}''', initNs=Prefix.NAMESPACES)
                ]
-               return result[0] if len(result) == 1 else None
+               return result
           except ParseException as e:
-               print(f"Error while parsing query when fetching variable positional parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching variable positional parameters for <{get_name(mapping)}>: <{e}>")
                return None
 
-    def is_varpositional(self, f, param):
+    def is_varpositional(self, mapping, param):
           """
           Check if a parameter of a function is a variable positional parameter.
 
@@ -902,21 +907,18 @@ class ExecutableGraph(Graph):
                bool: True if the parameter is a variable positional parameter, False otherwise.
           """
           try:
-               f = self.check_call(f)
                result = self.query(f'''
                               ASK WHERE {{
-                                   ?mapping fno:function <{f}> ;
-                                             a fno:Mapping .
-                                   ?mapping fno:parameterMapping ?varmapping .
-                                   ?varmapping a fnom:VarPositionalParameterMapping ;
+                                   <{mapping}> fno:parameterMapping ?varmapping .
+                                   ?varmapping a fnom:IndexMapping ;
                                              fnom:functionParameter <{param}> .
                               }}''', initNs=Prefix.NAMESPACES)
                return True if result else False
           except ParseException as e:
-               print(f"Error while parsing query when fetching variable positional parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching variable positional parameters for <{get_name(mapping)}>: <{e}>")
                return False
 
-    def get_varkeyword(self, f):
+    def get_varkeyword(self, mapping):
           """
           Get variable keyword parameters of a function.
 
@@ -927,24 +929,21 @@ class ExecutableGraph(Graph):
                str: The variable keyword parameter.
           """
           try:
-               f = self.check_call(f)
                result = [
                     x['param']
                     for x in self.query(f'''
                          SELECT ?property ?param WHERE {{
-                              ?mapping fno:function <{f}> ;
-                                        a fno:Mapping .
-                              ?mapping fno:parameterMapping ?varmapping .
-                              ?varmapping a fnom:VarPropertyParameterMapping ;
+                              <{mapping}> fno:parameterMapping ?varmapping .
+                              ?varmapping a fnom:KeyValueMapping ;
                                         fnom:functionParameter ?param .
                          }}''', initNs=Prefix.NAMESPACES)
                ]
-               return result[0] if len(result) == 1 else None
+               return result
           except ParseException as e:
-               print(f"Error while parsing query when fetching variable keyword parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching variable keyword parameters for <{get_name(mapping)}>: <{e}>")
                return None
 
-    def is_varkeyword(self, f, param):
+    def is_varkeyword(self, mapping, param):
           """
           Check if a parameter of a function is a variable keyword parameter.
 
@@ -956,22 +955,19 @@ class ExecutableGraph(Graph):
                bool: True if the parameter is a variable keyword parameter, False otherwise.
           """
           try:
-               f = self.check_call(f)
                result = self.query(f'''
                               ASK WHERE {{
-                                   ?mapping fno:function <{f}> ;
-                                             a fno:Mapping .
-                                   ?mapping fno:parameterMapping ?varmapping .
-                                   ?varmapping a fnom:VarPropertyParameterMapping ;
+                                   <{mapping}> fno:parameterMapping ?varmapping .
+                                   ?varmapping a fnom:KeyValueMapping ;
                                              fnom:functionParameter <{param}> .
                               }}''', initNs=Prefix.NAMESPACES)
                return True if result else False
           except ParseException as e:
-               print(f"Error while parsing query when fetching variable keyword parameters for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching variable keyword parameters for <{get_name(mapping)}>: <{e}>")
                return False
      
           
-    def get_param_mapping(self, f, param):
+    def get_param_mapping(self, mapping, param):
           """
           Retrieve mapping information for a specified parameter of a function.
 
@@ -987,21 +983,18 @@ class ExecutableGraph(Graph):
                ParseException: If there is an error while parsing the query.
           """
           try:
-               f = self.check_call(f)
-               
                result = [
                     (x['index'].value if x['index'] is not None else None,
                      x['property'].value if x['property'] is not None else None)
                     for x in self.query(f'''
                          SELECT ?index ?property WHERE {{
-                              ?mapping fno:function <{f}> .
                               OPTIONAL {{ 
-                                   ?mapping fno:parameterMapping ?posmapping .
+                                   <{mapping}> fno:parameterMapping ?posmapping .
                                    ?posmapping fnom:functionParameter <{param}> ;
                                                fnom:implementationParameterPosition ?index . 
                               }}
                               OPTIONAL {{ 
-                                   ?mapping fno:parameterMapping ?propmapping .
+                                   <{mapping}> fno:parameterMapping ?propmapping .
                                    ?propmapping fnom:functionParameter <{param}> ;
                                                 fnom:implementationProperty ?property . 
                               }}
@@ -1010,19 +1003,16 @@ class ExecutableGraph(Graph):
                ]
                return result[0] if len(result) > 0 else (None, None)
           except ParseException as e:
-               print(f"Error while parsing query when fetching imp mapping for <{get_name(f)}>: <{e}>")
+               print(f"Error while parsing query when fetching imp mapping for <{get_name(mapping)}>: <{e}>")
                return
     
-    def get_default_mapping(self, f, param):
+    def get_default_mapping(self, mapping, param):
         try:
-            f = self.check_call(f)
-               
             result = [
                 x['default'].value if x['default'] is not None else None
                 for x in self.query(f'''
                     SELECT ?default WHERE {{
-                        ?mapping fno:function <{f}> ;
-                                 fno:parameterMapping ?defmapping .
+                        <{mapping}> fno:parameterMapping ?defmapping .
                         ?defmapping fnom:functionParameter <{param}> ;
                                     fnom:defaultValue ?default . 
                     }}
@@ -1257,7 +1247,7 @@ class ExecutableGraph(Graph):
     ### PYTHON ###
     
     def is_python(self, uri: URIRef):
-        return self.is_pythonfunction(uri) or self.is_pythonclass(uri) or self.is_pythonfile(uri)
+        return self.is_pythonfunction(uri) or self.is_pythonclass(uri) or self.is_pythonfile(uri) or self.is_pythonmethod(uri)
         
     def is_pythonfunction(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonFunction . }}""", initNs=Prefix.NAMESPACES)
@@ -1268,6 +1258,9 @@ class ExecutableGraph(Graph):
     def is_pythonfile(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonFile . }}""", initNs=Prefix.NAMESPACES)
     
+    def is_pythonmethod(self, uri: URIRef):
+        return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonMethod . }}""", initNs=Prefix.NAMESPACES)
+    
     ### DOCKER ###
     
     def is_dockerfile(self, uri: URIRef):
@@ -1275,6 +1268,18 @@ class ExecutableGraph(Graph):
     
     def is_dockerimage(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:DockerImage . }}""", initNs=Prefix.NAMESPACES)
+    
+    def get_tag(self, uri: URIRef):
+        results = [ x['tag'].value for x in self.query(f"""
+                SELECT ?tag WHERE {{
+                    <{uri}> a fnoi:DockerImage ;
+                        rdfs:label ?tag .                                
+                }}""", initNs=Prefix.NAMESPACES) ]
+        
+        if len(results) == 1:
+            return results[0]
+        
+        raise Exception(f"Unable to capture valid results: {results}")
     
     ### IMPLEMENTATION ###
     

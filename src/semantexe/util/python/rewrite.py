@@ -17,7 +17,6 @@ class ASTRewriter(ast.NodeTransformer):
         transformed_tree = self.visit(tree)
         ast.fix_missing_locations(transformed_tree)
         updated_code = ast.unparse(transformed_tree)
-        print(updated_code)
         return updated_code, self.arguments
 
     def visit_Assign(self, node):

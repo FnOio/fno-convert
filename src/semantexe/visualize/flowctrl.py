@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QObject
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QSizePolicy, QHeaderView, QTreeWidgetItem, QVBoxLayout, QLineEdit, QPushButton, QGridLayout, QComboBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QHeaderView, QTreeWidgetItem, QVBoxLayout, QLineEdit, QPushButton, QGridLayout, QComboBox
 from PyQt6.QtGui import QIntValidator, QDoubleValidator
 from rdflib import URIRef
 from pyqtgraph import TreeWidget
@@ -88,22 +88,31 @@ class InputWidget(QWidget):
             inp_type = getattr(inp.type, '__name__', str(inp.type))
             item = QTreeWidgetItem([inp.name, inp_type, ''])
             self.inputList.addTopLevelItem(item)
-            convertItem = ConvertWidget(inp)
+            convertItem = ConvertWidget(inp, item, self.inputList)
             self.inputList.setItemWidget(item, 2, convertItem)
             self.items[inp] = convertItem
     
     def execute(self):
+        # Set the inputs
+        for inp, item in self.items.items():
+            inp.set(item.getInput())
+            
         if self.executor is None:
             # TODO error alert pick executor first
             pass
         exe = self.executors[self.executor.currentText()](self.function.g)
-        exe.execute(self.function)
+        pg = exe.provenance(self.function)
+        
+        pg.serialize("graphs/prov/prov.ttl", format="turtle")
 
 class ConvertWidget(QWidget):
 
-    def __init__(self, inp: Terminal) -> None:
+    def __init__(self, inp: Terminal, item: QTreeWidgetItem, inputList: TreeWidget) -> None:
         super().__init__()
         self.inp = inp
+        self.item = item
+        self.inputList = inputList
+        self.input_fields = set()
 
         layout = QVBoxLayout(self)
 
@@ -115,14 +124,43 @@ class ConvertWidget(QWidget):
                 self.input_field.setValidator(QDoubleValidator())
             
             layout.addWidget(self.input_field)
+        elif self.inp.param_mapping.index:
+            button_layout = QHBoxLayout()
+            
+            add_button = QPushButton('+', self)
+            add_button.clicked.connect(self.add_input_field)
+            button_layout.addWidget(add_button)
+
+            remove_button = QPushButton('-', self)
+            remove_button.clicked.connect(self.remove_input_field)
+            button_layout.addWidget(remove_button)
+            
+            layout.addLayout(button_layout)
         
         self.setLayout(layout)
+    
+    def add_input_field(self):
+        new_input_field = QLineEdit(self)
+        self.input_fields.add(new_input_field)
+        self.item.addChild(QTreeWidgetItem(['', '', '']))
+        self.inputList.setItemWidget(self.item.child(self.item.childCount() - 1), 2, new_input_field)
+    
+    def remove_input_field(self):
+        if self.input_fields:
+            last_input_field = self.item.child(self.item.childCount() - 1)
+            self.item.removeChild(last_input_field)
+            self.input_fields.remove(last_input_field)
     
     def getInput(self):
         if self.inp.type == int:
             return int(self.input_field.text())
         elif self.inp.type == float:
             return float(self.input_field.text())
+        elif self.inp.param_mapping.index:
+            input = []
+            for input_field in self.input_fields:
+                input.append(input_field.text())
+            return input
         return self.input_field.text()
 
 class FunctionList(QWidget):

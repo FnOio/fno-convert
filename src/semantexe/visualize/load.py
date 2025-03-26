@@ -55,16 +55,16 @@ class Descripter(QWidget):
                 self.function_select.addItems(used_functions)"""
                 
                 g = ExecutableGraph()
-                fun_uri, [map_uris], imp_uri = PythonDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, [map_uris], imp_uri, "python")
+                fun_uri, map_uris, imp_uri = PythonDescriptor(g).describe_file(self.file_path)
+                self.resource_described.emit(g, fun_uri, map_uris, imp_uri, "python")
             
             if self.file_path.endswith("Dockerfile"):
                 with open(self.file_path, "r") as file:
                     source = file.read()
                     self.file_loaded.emit(source)
                 g = ExecutableGraph()
-                fun_uri, [map_uris], imp_uri = DockerfileDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, [map_uris], imp_uri, "dockerfile")
+                fun_uri, map_uris, imp_uri = DockerfileDescriptor(g).describe_file(self.file_path)
+                self.resource_described.emit(g, fun_uri, map_uris, imp_uri, "dockerfile")
 
     def load_function(self):
         function_name = self.function_select.currentText()

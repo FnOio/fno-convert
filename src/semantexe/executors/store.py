@@ -1,4 +1,5 @@
 from ..graph import get_name, ExecutableGraph
+from ..mappers import PythonMapper
 from rdflib import URIRef
 from enum import Enum, auto
 
@@ -10,15 +11,20 @@ class MappingType(Enum):
 
 class ParameterMapping:
 
-    def __init__(self, g: ExecutableGraph, fun: URIRef, par: URIRef) -> None:
+    def __init__(self, g: ExecutableGraph, mapping: URIRef, par: URIRef) -> None:
         self.property = None
         self.type = None
-        if g.is_varpositional(fun, par):
+        self.index = False
+        self.keyvalue = False
+        
+        if g.is_varpositional(mapping, par):
+            self.index = True
             self.type = MappingType.VARPOSITIONAL
-        if g.is_varkeyword(fun, par):
+        elif g.is_varkeyword(mapping, par):
+            self.keyvalue = True
             self.type = MappingType.VARKEYWORD
         
-        index, prop = g.get_param_mapping(fun, par)
+        index, prop = g.get_param_mapping(mapping, par)
 
         if prop is not None:
             self.property = prop
@@ -27,7 +33,7 @@ class ParameterMapping:
             self.property = index
             self.type = MappingType.POSITIONAL
         
-        self.has_default, self.default = g.get_default_mapping(fun, par)    
+        self.has_default, self.default = g.get_default_mapping(mapping, par)    
         
     def get_type(self):
         return self.type
@@ -54,8 +60,11 @@ class Mapping:
         self.priority = priority
     
     def execute(self):
+        self.target.prov.sources = []
         for source, src_strat, src_key, tar_strat, tar_key in self.sources[self.priority]:
             self.target.set(source.get(src_strat, src_key), tar_strat, tar_key)
+            if source.prov.instance:
+                self.target.prov.sources.append(source.prov.instance)
     
     def list_sources(self):
         sources = set()
@@ -70,6 +79,7 @@ class ValueStore:
         self.value = None
         self.type = type
         self.value_set = False
+        self.prov = Provenance()
     
     def get(self, strat=None, key=None):
         return self.value if strat is None else self.value[key]
@@ -80,7 +90,12 @@ class ValueStore:
 
 class Terminal(ValueStore):
 
-    def __init__(self, fun, uri: URIRef, pred: str, type=None, is_output=False, param_mapping=None) -> None:
+    def __init__(self, fun, uri: URIRef, pred: URIRef, type=None, is_output=False, param_mapping=None) -> None:
+        try:
+            type = PythonMapper.fno_to_obj(fun.g, type)
+        except Exception as e:
+            pass
+        
         super().__init__(type)
         self.name = get_name(pred)
         self.fun = fun
@@ -101,10 +116,11 @@ class Terminal(ValueStore):
             self.value[key] = value
 
     def get(self, strat=None, key=None):
-        if self.is_output or self.param_mapping.get_type() is None:
+        if self.is_output or self.param_mapping is None:
             return super().get(strat, key)
         
         if (self.param_mapping.get_type() == MappingType.POSITIONAL and self.strat == "toList") or \
+            (self.param_mapping.get_type() == MappingType.POSITIONAL and self.param_mapping.index) or \
             self.param_mapping.get_type() == MappingType.VARPOSITIONAL:
                 return self.to_list()
             
@@ -113,8 +129,9 @@ class Terminal(ValueStore):
     def to_list(self):
         if not self.value_set:
             return []
-        if self.strat != "toList":
-            raise Exception(f"Terminal does not represent a list: {self.strat}")
+        
+        if isinstance(self.value, list):
+            return self.value
         
         indexed = []
         for i, val in self.value.items():
@@ -144,3 +161,9 @@ class Terminal(ValueStore):
     
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Terminal) and self.uri == other.uri and self.fun == other.fun
+
+class Provenance():
+    
+    def __init__(self):
+        self.sources = []
+        self.instance = None

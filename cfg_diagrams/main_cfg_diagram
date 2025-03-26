@@ -1,11 +1,9 @@
 digraph clustermain {
 	graph [label=main]
-	10 [label="#10
-for n in numbers:
+	3 [label="#3
+app = QApplication(sys.argv)
+window = PY2RDFWindow()
+window.show()
+sys.exit(app.exec())
 "]
-	11 [label="#11
-print(f'faculty sum of n = {n_sum(n)}')
-"]
-	11 -> 10 [label=""]
-	10 -> 11 [label=numbers]
 }

@@ -10,6 +10,7 @@ class StandardKG:
     def __init__(self):
         self.g = ExecutableGraph()
         self.g += Graph().parse(files("semantexe.functions").joinpath("control_flow.ttl"), format='turtle')
+        self.g += Graph().parse(files("semantexe.functions").joinpath("python.ttl"), format='turtle')
         self.g += Graph().parse(files("semantexe.functions").joinpath("dockeronto.ttl"), format='turtle')
     
     def __contains__(self, uri):

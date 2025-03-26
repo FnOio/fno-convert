@@ -5,8 +5,9 @@ import ast, os
 
 from ..prefix import Prefix
 from ..graph import ExecutableGraph
-from ..builders import FnOBuilder, DockerBuilder
+from ..builders import FnOBuilder, DockerBuilder, ProvBuilder
 from ..descriptors.file import AbstractFileDescriptor
+from ..descriptors.python import PythonDescriptor
 from ..mappers import FileMapper
 from ..util.std_kg import STD_KG
 from ..util.mapping import Mapping, MappingNode
@@ -24,8 +25,9 @@ class DockerfileDescriptor(AbstractFileDescriptor):
     
     def describe_file(self, path):
         if path.endswith("Dockerfile"):
-            name = os.path.basename(os.path.dirname(path))
-            file_uri = FileMapper.uri(name, path)
+            self.dir = os.path.dirname(path)
+            name = os.path.basename(self.dir)
+            file_uri = FileMapper.uri(path)
             fun_uri = Prefix.base()[f"{name}Dockerfile"]
             if not self.g.exists(file_uri):
                 
@@ -34,7 +36,7 @@ class DockerfileDescriptor(AbstractFileDescriptor):
             
                 ### URI ###
                 
-                comp_uri = URIRef(f"{file_uri}Composition")
+                comp_uri = URIRef(f"{fun_uri}Composition")
                 
                 self.parser.dockerfile_path = path
                 
@@ -44,7 +46,7 @@ class DockerfileDescriptor(AbstractFileDescriptor):
                 for inst in self.parser.structure:
                     self.handle_inst(inst)
                 
-                FnOBuilder.describe_composition(self.g, comp_uri, self.mappings, represents=file_uri)
+                FnOBuilder.describe_composition(self.g, comp_uri, self.mappings, represents=fun_uri)
                 
                 # Indicate start
                 FnOBuilder.start(self.g, comp_uri, self.start)
@@ -157,6 +159,17 @@ class DockerfileDescriptor(AbstractFileDescriptor):
         self.handle_mapping(cmd, run_cmd)
         
         self.handle_order(call_uri)
+        
+        # provide representation for python functions
+        value = value.split(' ')
+        if value[0].startswith('python'):
+            # TODO handle arguments
+            file = os.path.join(self.dir, value[1])
+            fun_uri, _, _ = PythonDescriptor(self.g).describe_file(file)
+            
+            comp_uri = URIRef(f"{call_uri}Composition")
+            FnOBuilder.describe_composition(self.g, comp_uri, [], represents=call_uri)
+            FnOBuilder.start(self.g, comp_uri, fun_uri)
     
     def handle_copy(self, value):
         inst = 'copy'

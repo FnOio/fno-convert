@@ -8,6 +8,11 @@ class FnOBuilder():
     Provides methods to describe functions, implementations, mappings, parameters, and outputs
     in the context of the Function Ontology (FNO).
     """
+    
+    @staticmethod
+    def map(g: ExecutableGraph, fun, map, imp):
+        g.add((map, Prefix.ns('fno').function, fun))
+        g.add((map, Prefix.ns('fno').implementation, imp))
 
     @staticmethod
     def apply(g: ExecutableGraph, call, f):
@@ -80,12 +85,8 @@ class FnOBuilder():
                         
                 # map from strategy
                 if mapfrom.has_map_strategy():
-                    index = mapfrom.index
-                    triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')["getItem"]))
-                    if isinstance(index, int):
-                        triples.append((bnode, Prefix.ns('fnoc')["index"], Literal(index)))
-                    else:
-                        triples.append((bnode, Prefix.ns('fnoc')["property"], Literal(index)))
+                    triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')[mapfrom.strategy]))
+                    triples.append((bnode, Prefix.ns('fnoc')["key"], Literal(mapfrom.key)))
 
                 [ g.add(x) for x in triples ]
                     
@@ -166,6 +167,8 @@ class FnOBuilder():
         ]
 
         [ g.add(x) for x in triples ]
+        
+        return uri
     
     @staticmethod
     def describe_output(g: ExecutableGraph, uri, type, pred):
@@ -218,9 +221,9 @@ class FnOBuilder():
     @staticmethod
     def describe_mapping(g, f, imp, f_name=None, output=None,
                          positional=[], keyword={}, 
-                         args=None, kargs=None, 
+                         args=set(), kargs=set(), 
                          self_output=None, 
-                         defaults={}) -> ExecutableGraph:
+                         defaults={}) -> URIRef:
         """
         Describe a mapping.
 
@@ -284,6 +287,13 @@ class FnOBuilder():
                 (paramNode, Prefix.ns('fnom')['functionParameter'], param),
                 (paramNode, Prefix.ns('fnom')['implementationParameterPosition'], Literal(i))
             ])
+            
+            if param in args:
+                triples.append((paramNode, RDF.type, Prefix.ns('fnom')['IndexMapping']))
+                args.remove(param)
+            if param in kargs:
+                triples.append((paramNode, RDF.type, Prefix.ns('fnom')['KeyValueMapping']))
+                kargs.remove(param)
 
             if param in defaults:
                 triples.append((param, Prefix.ns('fno')["required"], Literal(False)))
@@ -319,27 +329,33 @@ class FnOBuilder():
                 (defaultNode, Prefix.ns('fnom')['functionParameter'], param),
                 (defaultNode, Prefix.ns('fnom')['defaultValue'], default),
             ])
-
-        ### VAR POSITIONAL PARAMETER MAPPING ###
         
-        if args is not None:
+        ### INDEX PARAMETER MAPPING ###
+        
+        if len(args) == 1:
+            arg = args.pop()
             argNode = BNode()
             triples.extend([
                 (s, Prefix.ns('fno')['parameterMapping'], argNode),
-                (argNode, RDF.type, Prefix.ns('fnom')['VarPositionalParameterMapping']),
-                (argNode, Prefix.ns('fnom')['functionParameter'], args)
+                (argNode, RDF.type, Prefix.ns('fnom')['IndexMapping']),
+                (argNode, Prefix.ns('fnom')['functionParameter'], arg)
             ])
-        
-        ### VAR KEYWORD PARAMETER MAPPING ###
+        elif len(args) > 1:
+            raise Exception("There can only be one non-positional index mapping")
 
-        if kargs is not None:
+        ### KEY VALUE PARAMETER MAPPING ###
+        
+        if len(kargs) == 1:
+            karg = kargs.pop()
             kargNode = BNode()
             triples.extend([
                 (s, Prefix.ns('fno')['parameterMapping'], kargNode),
-                (kargNode, RDF.type, Prefix.ns('fnom')['VarPropertyParameterMapping']),
-                (kargNode, Prefix.ns('fnom')['functionParameter'], kargs)
+                (kargNode, RDF.type, Prefix.ns('fnom')['KeyValueMapping']),
+                (kargNode, Prefix.ns('fnom')['functionParameter'], karg)
             ])
-
+        elif len(kargs) > 1:
+            raise Exception("There can only be one non-positional key value mapping")
+        
         [ g.add(x) for x in triples ]
 
         return s
@@ -352,7 +368,9 @@ class FnOBuilder():
     def describe_execution(g: ExecutableGraph, exe, fun, mapping, inputs):
         g.add((exe, RDF.type, Prefix.ns('fno').Execution))
         g.add((exe, Prefix.ns('fno').executes, fun))
-        g.add((exe, Prefix.ns('fno').uses, mapping))
+        
+        if mapping:
+            g.add((exe, Prefix.ns('fno').uses, mapping))
         
         for pred, input in inputs.items():
             g.add((exe, pred, input))

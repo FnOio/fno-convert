@@ -3,12 +3,15 @@ import inspect, importlib, importlib.util, sys, hashlib
 from typing import Any
 from types import NoneType, FunctionType
 from rdflib import Literal, URIRef, BNode, RDF
+from rdflib.term import _toPythonMapping
 from datetime import datetime, date, time
 from decimal import Decimal
 
 from ..prefix import Prefix
 from ..builders import PythonBuilder, FnOBuilder
 from ..graph import ExecutableGraph, get_name
+
+_toPythonMapping[Prefix.ns('xsd').string] = str
 
 def load_function_from_source(file_path, function_name):
     """
@@ -36,12 +39,17 @@ def load_function_from_source(file_path, function_name):
     except AttributeError as e:
         return
 
-def is_standard_literal_type(instance):
+def is_of_std_lit_type(instance):
     """
     Check if the instance is of a type that RDFlib recognizes as a standard literal type.
     """
-    standard_types = (str, int, bool, float, datetime, date, time, Decimal)
-    return isinstance(instance, standard_types)
+    return type(instance) in _toPythonMapping.values()
+
+def is_std_lit_type(instance):
+    """
+    Check if the instance is a type that RDFlib recognizes as a standard literal type.
+    """
+    return instance in _toPythonMapping.values()
 
 
 class PythonMapper:
@@ -71,6 +79,10 @@ class PythonMapper:
             imp = Any
         elif imp is None:
             imp = type(None)
+            
+        for type_uri, imp_type in _toPythonMapping.items():
+            if imp == imp_type:
+                return type_uri
         
         imp_name = getattr(imp, '__name__', getattr(type(imp), '__name__', str(imp)))
     
@@ -118,72 +130,39 @@ class PythonMapper:
     
     @staticmethod
     def map_with_parse_args(g: ExecutableGraph, fun, imp, output, args):
-        methodNode = BNode()
-        returnNode = BNode()
-
         context = get_name(fun)
-        uri = Prefix.base()[f"{context}Mapping"]
-
-        triples = [
-            (uri, RDF.type, Prefix.ns('fno')['Mapping']),
-            (uri, Prefix.ns(f'fnom')["mappingMethod"], Literal("argparse")),
-            (uri, Prefix.ns('fno')['function'], fun),
-            (uri, Prefix.ns('fno')['implementation'], imp)  
-        ]
         
-        triples.extend([
-            (uri, Prefix.ns('fno')['methodMapping'], methodNode),
-            (methodNode, RDF.type, Prefix.ns('fnom')['CommandMethodMapping']),
-            (methodNode, Prefix.ns('fnom')['command'], Literal("python"))
-        ])
+        positional = []
+        keyword = {}
+        defaults = {}
         
-        if output is not None:
-            triples.extend([
-                (uri, Prefix.ns('fno')['returnMapping'], returnNode),
-                (returnNode, RDF.type, Prefix.ns('fnom')['DefaultReturnMapping']),
-                (returnNode, Prefix.ns('fnom')['functionOutput'], output),
-            ])
+        index_mapping = []
+        keyvalue_mapping = []
         
         for i, arg in enumerate(args):
             paramNode = BNode()
             name = arg['name'].lstrip('-')
             param = g.get_predicate_param(fun, name)
             
-            triples.extend([
-                (uri, Prefix.ns('fno')['parameterMapping'], paramNode),
-                (paramNode, RDF.type, Prefix.ns('fnom')['ArgumentMapping']),
-            ])
-            
             if not arg['name'].startswith('-'):
                 # Positional
-                triples.extend([
-                    (paramNode, Prefix.ns('fnom')['functionParameter'], param),
-                    (paramNode, Prefix.ns('fnom')['implementationParameterPosition'], Literal(i))
-                ])
+                positional.append(param)
             else:
                 # Keyword
-                triples.extend([
-                    (paramNode, Prefix.ns('fnom')['functionParameter'], param),
-                    (paramNode, Prefix.ns('fnom')['implementationProperty'], Literal(arg["name"]))
-                ])
+                keyword[param] = arg['name']
             
             if 'nargs' in arg:
-                triples.append((paramNode, Prefix.ns('fnom')['nargs'], Literal(arg["nargs"])))
-
+                # TODO what values are possible for nargs?
+                index_mapping.append(param)
+            
             if 'default' in arg:
-                defaultNode = BNode()
-                
-                triples.extend([
-                    (param, Prefix.ns('fno')["required"], Literal(False)),
-                    (uri, Prefix.ns('fno')['parameterMapping'], defaultNode),
-                    (defaultNode, RDF.type, Prefix.ns('fnom')['DefaultParameterMapping']),
-                    (defaultNode, Prefix.ns('fnom')['functionParameter'], param),
-                    (defaultNode, Prefix.ns('fnom')['defaultValue'], Literal(arg["default"])),
-                ])
-            else:
-                triples.append((param, Prefix.ns('fno')["required"], Literal(True)))
+                defaults[param] = arg['default']
         
-        [ g.add(x) for x in triples ]
+        uri = FnOBuilder.describe_mapping(g, fun, imp, context,
+                                    output=output,
+                                    positional=positional, keyword=keyword,
+                                    args=index_mapping, kargs=keyvalue_mapping,
+                                    defaults=defaults)
         
         return uri
     
@@ -195,8 +174,8 @@ class PythonMapper:
         # Capture the kinds
         positional = []
         keyword = []
-        args = None
-        kargs = None
+        args = set()
+        kargs = set()
         defaults = {}
 
         for name, param in params.items():
@@ -210,12 +189,12 @@ class PythonMapper:
             elif param.kind == inspect.Parameter.KEYWORD_ONLY:
                 keyword.append((par, name))
             elif param.kind == inspect.Parameter.VAR_POSITIONAL:
-                args = par
+                args.add(par)
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
-                kargs = par
+                kargs.add(par)
             
             if param.default is not inspect._empty:
-                defaults[par] = PythonMapper.inst_to_rdf(g, param.default)
+                defaults[par] = PythonMapper.value_to_rdf(g, param.default)
 
         FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional, keyword, args, kargs, self_output, defaults)
         
@@ -272,6 +251,9 @@ class PythonMapper:
         
         if s.split('#')[-1] == 'NoneType':
             return NoneType
+        
+        if s in _toPythonMapping:
+            return _toPythonMapping[s]
                 
         result = [
             (x['label'].value, 
@@ -312,7 +294,7 @@ class PythonMapper:
         return Any
     
     @staticmethod
-    def inst_to_rdf(g: ExecutableGraph, inst):
+    def value_to_rdf(g: ExecutableGraph, inst):
         """
         Convert a Python literal or instance to RDF.
 
@@ -323,8 +305,8 @@ class PythonMapper:
             tuple: A tuple containing the RDF literal and the type description graph.
         """
         if isinstance(inst, URIRef):
-            return inst, None
-        if is_standard_literal_type(inst):
+            return inst
+        if type(inst) in _toPythonMapping.values():
             return Literal(inst)
         if type(inst) is type or isinstance(inst, FunctionType):
             inst_type = PythonMapper.obj_to_fno(g, inst)

@@ -1,11 +1,12 @@
-from ..graph import ExecutableGraph
-from ..prefix import Prefix
-from ..builders import DockerBuilder, ProvBuilder
-from ..mappers import DockerMapper
-from ..util.file import move_file
-from ..descriptors import FileDescriptor
-from .executeable import Function, AppliedFunction
-from .std import Executor
+from rdflib import URIRef
+from ...graph import ExecutableGraph
+from ...prefix import Prefix
+from ...builders import DockerBuilder, ProvBuilder, FnOBuilder
+from ...mappers import DockerMapper
+from ...util.file import move_file
+from ...descriptors import FileDescriptor
+from ..executeable import Function, AppliedFunction
+from ..std import Executor
 
 import os, subprocess, docker
 from pathlib import Path
@@ -38,8 +39,23 @@ def docker_build(dirpath, tag):
 class DockerfileExecutor(Executor):
     
     def __init__(self, g: ExecutableGraph):
-        self.g = g
-        self.exe_counter = 0
+        super().__init__(g)
+        
+        self.handled = {
+            Prefix.do().copy: self.execute_copy,
+            Prefix.do().workdir: self.execute_workdir,
+            Prefix.do().entrypoint: self.execute_entrypoint,
+            Prefix.do().cmd: self.execute_cmd,
+            Prefix.do().run: self.execute_run,
+            Prefix.do().user: self.no_execution,
+            Prefix.do().add: self.no_execution,
+            Prefix.do().label: self.no_execution,
+            Prefix.do().env: self.no_execution,
+            Prefix.do().port: self.no_execution,
+            Prefix.do().volume: self.no_execution,
+            Prefix.do().maintainer: self.no_execution,
+            Prefix.do()['from']: self.no_execution,
+        }
     
     def accepts(self, mapping, imp):
         return self.g.is_dockerfile(imp)
@@ -49,9 +65,8 @@ class DockerfileExecutor(Executor):
         pass
 
     def execute_function(self, fun: Function, *args, **kwargs):
-        
         # Build the docker image
-        self.build(fun, kwargs.get('tag'))
+        self.build(fun)
         
         # Provide extra provenance by executing the composition
         # Make sure there is a valid composition
@@ -60,31 +75,14 @@ class DockerfileExecutor(Executor):
         if fun.internal:
             fun.comp.execute(self)
         
-        # Execution provenance
-        self.provenance()
-        
         return self.pg
-        
-    def execute_applied(self, fun: AppliedFunction):
-        # Dockerfiles do not have control flow or compositions
-        if fun.fun_uri == Prefix.do()["copy"]:
-            self.execute_copy(fun)
-        elif fun.fun_uri == Prefix.do()["workdir"]:
-            self.execute_workdir(fun)
-        elif fun.fun_uri == Prefix.do()["entrypoint"]:
-            self.execute_entrypoint(fun)
-        elif fun.fun_uri == Prefix.do()["cmd"]:
-            self.execute_cmd(fun)
-        
-        fun._next = fun.next
     
-    def build(self, fun: Function, tag) -> ExecutableGraph:
-        # New provenance graph
+    def build(self, fun: Function) -> ExecutableGraph:
         self.fun = fun
-        self.pg = ExecutableGraph()
         self.fileDescriptor = FileDescriptor(self.pg)
         
         # Get the Dockerfile metadata
+        tag = fun["tag"].get()
         filepath = self.g.get_file(fun.imp)
         self.dir = os.path.dirname(filepath)
         
@@ -102,41 +100,45 @@ class DockerfileExecutor(Executor):
     
         # TODO Better image description
         # describe the image URI instance
-        self.image_uri = DockerMapper.describe_dockerimage(self.pg, image)
+        self.image_uri = DockerMapper.map_image(self.pg, image)
+        fun.output.set(self.image_uri)
     
-    def provenance(self):
+    def provenance(self, fun: Function, *args, **kwargs):
+        super().provenance(fun, *args, **kwargs)
         
-        # TODO Better execution description
-        # Describe execution
-        self.exe_counter += 1
-        exe = Prefix.base()[f"Execution{self.exe_counter}"]
-        ProvBuilder.activity(self.pg, exe)
-        
-        # TODO Use tag as extra input
-        # Dockerfile execution
-        ProvBuilder.entity(self.pg, self.fun.fun_uri)
-        ProvBuilder.execution(self.pg, exe, self.fun.fun_uri, self.fun.imp, [], self.image_uri)
         ProvBuilder.derivedFrom(self.pg, self.image_uri, self.fun.imp)
         
         # Default execute provenance
-        if self.entrypoint_cmd in ["python", "python3"]:
+        if self.entrypoint_cmd and self.entrypoint_cmd.startswith("python"):
             # Look for the correct python implementation
             # TODO Look for an implementation with a usable mapping
             try:
                 # Now just take the first implementation
                 file = os.path.join(self.workdir, self.entrypoint_params[0])
-                imp, _, _ = self.pg.imp_from_file(file)[0]
-                ProvBuilder.alternateOf(self.pg, self.image_uri, imp)
+                imp_uri, map_uri, fun_uri = self.pg.imp_from_file(file)[0]
+                # DockerBuilder.entrypoint(self.pg, self.image_uri, fun_uri, map_uri)
+                ProvBuilder.alternateOf(self.pg, self.image_uri, imp_uri)
             except IndexError as e:
                 print(f"[ERROR] No Python implementation found for {file}")
         
-            if len(self.entrypoint_params) > 1:
+            # Map the image implementation
+            FnOBuilder.map(self.pg, fun_uri, map_uri, self.image_uri)
+            
+            # TODO Copy mapping with new default values
+            """if len(self.entrypoint_params) > 1:
                 default_input = ' '.join(self.entrypoint_params[1:])
-                DockerBuilder.defaultInput(self.pg, self.image_uri, default_input)
+                DockerBuilder.defaultInput(self.pg, self.image_uri, default_input)"""
                 
-        return self.pg                
+        return self.pg
+    
+    def no_execution(self, fun: Function, *args, **kwargs):
+        pass
+    
+    def execute_run(self, fun: Function, *args, **kwargs):
+        if fun.internal:
+            fun.comp.execute(self)
 
-    def execute_copy(self, fun: Function):
+    def execute_copy(self, fun: Function, *args, **kwargs):
         # Describe all files inside the src directory
         src_dir = fun[Prefix.do().copySrc].value.replace('.', self.dir)
         dest_dir = fun[Prefix.do().copyDest].value.replace('.', self.workdir)
@@ -165,16 +167,17 @@ class DockerfileExecutor(Executor):
                                 ProvBuilder.alternateOf(self.pg, imp_copy, imp)
                                 DockerBuilder.includes(self.pg, self.image_uri, imp_copy)
 
-    def execute_workdir(self, fun: Function):
+    def execute_workdir(self, fun: Function, *args, **kwargs):
         # Set workdir
         value = fun[Prefix.do().workdirInput].value
         self.workdir = '' if value == '.' else value
     
-    def execute_entrypoint(self, fun: Function):
-        self.entrypoint_cmd = fun[Prefix.do().entrypointInputCommand].get()
-        self.entrypoint_params = fun[Prefix.do().entrypointInputParamList].to_list()
+    def execute_entrypoint(self, fun: Function, *args, **kwargs):
+        # self.entrypoint_cmd = fun[Prefix.do().entrypointInputCommand].get()
+        # self.entrypoint_params = fun[Prefix.do().entrypointInputParamList].to_list()
+        pass
     
-    def execute_cmd(self, fun: Function):
+    def execute_cmd(self, fun: Function, *args, **kwargs):
         value = fun[Prefix.do().cmdInputParamList].to_list()
         if self.entrypoint_cmd:
             self.entrypoint_params.extend(value)
@@ -184,5 +187,11 @@ class DockerfileExecutor(Executor):
                 self.entrypoint_params.extend(value[1:])
     
     def alt_executor(self, fun):
-        print(f"There currently exist no alternative executors for {self.__class__.__name__}")
-        return None
+        # Use the python executor to capture provenance locally
+        from ..python import PythonExecutor
+        executor = PythonExecutor(self.g, self.logger)
+        
+        executor.execute(fun)
+        
+        # TODO link provenance
+        # pg, exe_uri = executor.provenance()

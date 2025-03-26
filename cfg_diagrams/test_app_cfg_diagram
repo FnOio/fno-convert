@@ -1,0 +1,6 @@
+digraph cluster_ {
+	graph [label=_]
+	6 [label="#6
+main()
+"]
+}

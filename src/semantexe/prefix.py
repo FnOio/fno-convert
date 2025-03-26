@@ -7,6 +7,7 @@ std_prefixes = {
     'xsd': "http://www.w3.org/2001/XMLSchema#",
     'ex': "http://www.example.com#",
     'cf': "http://www.example.com/controlflow#",
+    'py': "http://www.example.com/pythonfunction#",
     'docker': "http://www.example.com/docker#",
     'python': "http://www.example.com/python#",
     'dcterms': "http://purl.org/dc/terms/",
@@ -24,6 +25,8 @@ std_prefixes = {
     'mls': "http://www.w3.org/ns/mls#",
     'mlflow': "http://www.example.com/mlflow#",
     'do': "http://linkedcontainers.org/vocab#",
+    'ldes': "https://w3id.org/ldes#",
+    'tree': "https://w3id.org/tree#",
 }
 
 
@@ -95,12 +98,22 @@ class Prefix:
     @staticmethod
     def cf():
         """
-        Get the base URI for the Python functions namespace.
+        Get the base URI for the controlflow functions namespace.
 
         Returns:
             str: The base URI.
         """
         return Prefix.ns('cf')
+    
+    @staticmethod
+    def py():
+        """
+        Get the base URI for the python functions namespace.
+
+        Returns:
+            str: The base URI.
+        """
+        return Prefix.ns('py')
     
     @staticmethod
     def do():
@@ -121,3 +134,23 @@ class Prefix:
             str: The base URI.
         """
         return Prefix.ns('prov')
+    
+    @staticmethod
+    def ldes():
+        """
+        Get the base URI for LDES Ontology.
+
+        Returns:
+            str: The base URI.
+        """
+        return Prefix.ns('ldes')
+    
+    @staticmethod
+    def tree():
+        """
+        Get the base URI for Tree Ontology.
+
+        Returns:
+            str: The base URI.
+        """
+        return Prefix.ns('tree')

@@ -1,0 +1,102 @@
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix ex: <http://www.example.com#> .
+@prefix fno: <https://w3id.org/function/ontology#> .
+@prefix fnoi: <https://w3id.org/function/vocabulary/implementation#> .
+@prefix ldes: <https://w3id.org/ldes#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix python: <http://www.example.com/python#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix tree: <https://w3id.org/tree#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:encoder_pkl1703de9fEventStream a ldes:EventStream ;
+    ldes:timestampPath prov:atTime ;
+    ldes:versionOfPath prov:derivedFrom ;
+    tree:member ex:encoder_pklb82cd66f .
+
+ex:nb_model_pkl285cc44aEventStream a ldes:EventStream ;
+    ldes:timestampPath prov:atTime ;
+    ldes:versionOfPath prov:derivedFrom ;
+    tree:member ex:nb_model_pklc243d21e .
+
+ex:rf_model_pklc6328d71EventStream a ldes:EventStream ;
+    ldes:timestampPath prov:atTime ;
+    ldes:versionOfPath prov:derivedFrom ;
+    tree:member ex:rf_model_pkl2e45e1a1 .
+
+ex:svm_model_pkl8f7eb131EventStream a ldes:EventStream ;
+    ldes:timestampPath prov:atTime ;
+    ldes:versionOfPath prov:derivedFrom ;
+    tree:member ex:svm_model_pkl1a88278c .
+
+python:NoneTypee513fb1f a fnoi:Implementation,
+        fnoi:PythonClass ;
+    doap:name "NoneType" ;
+    fnoi:module "builtins" .
+
+ex:encoder_pkl1703de9f a prov:Entity ;
+    rdf:value <file://./docker_examples/diagnose/models/encoder.pkl> ;
+    prov:qualifiedGeneration ex:encoder_pklb82cd66f .
+
+ex:nb_model_pkl285cc44a a prov:Entity ;
+    rdf:value <file://./docker_examples/diagnose/models/nb_model.pkl> ;
+    prov:qualifiedGeneration ex:nb_model_pklc243d21e .
+
+ex:outputf117ef9f a prov:Entity ;
+    rdf:value "None"^^python:NoneTypee513fb1f ;
+    prov:wasGeneratedBy ex:train_mainExecutionf117ef9f .
+
+ex:rf_model_pklc6328d71 a prov:Entity ;
+    rdf:value <file://./docker_examples/diagnose/models/rf_model.pkl> ;
+    prov:qualifiedGeneration ex:rf_model_pkl2e45e1a1 .
+
+ex:svm_model_pkl8f7eb131 a prov:Entity ;
+    rdf:value <file://./docker_examples/diagnose/models/svm_model.pkl> ;
+    prov:qualifiedGeneration ex:svm_model_pkl1a88278c .
+
+ex:encoder_pklb82cd66f a prov:Generation,
+        prov:InstantaneousEvent ;
+    rdfs:label "File Created" ;
+    prov:activity ex:train_mainExecutionf117ef9f ;
+    prov:atTime "2025-03-26T12:06:23.742056"^^xsd:dateTime ;
+    prov:derivedFrom ex:encoder_pkl1703de9f .
+
+ex:nb_model_pklc243d21e a prov:Generation,
+        prov:InstantaneousEvent ;
+    rdfs:label "File Created" ;
+    prov:activity ex:train_mainExecutionf117ef9f ;
+    prov:atTime "2025-03-26T12:06:23.743046"^^xsd:dateTime ;
+    prov:derivedFrom ex:nb_model_pkl285cc44a .
+
+ex:rf_model_pkl2e45e1a1 a prov:Generation,
+        prov:InstantaneousEvent ;
+    rdfs:label "File Created" ;
+    prov:activity ex:train_mainExecutionf117ef9f ;
+    prov:atTime "2025-03-26T12:06:23.743102"^^xsd:dateTime ;
+    prov:derivedFrom ex:rf_model_pklc6328d71 .
+
+ex:svm_model_pkl1a88278c a prov:Generation,
+        prov:InstantaneousEvent ;
+    rdfs:label "File Created" ;
+    prov:activity ex:train_mainExecutionf117ef9f ;
+    prov:atTime "2025-03-26T12:06:23.742158"^^xsd:dateTime ;
+    prov:derivedFrom ex:svm_model_pkl8f7eb131 .
+
+ex:train_pyd8c989cd a prov:Agent .
+
+ex:train_main a prov:Entity .
+
+ex:train_mainExecutionf117ef9f a prov:Activity,
+        fno:Execution ;
+    ex:output ex:outputf117ef9f ;
+    prov:endedAt "2025-03-26T12:06:23.917184"^^xsd:dateTime ;
+    prov:qualifiedAssociation [ a prov:Association ;
+            prov:agent ex:train_pyd8c989cd ;
+            prov:hadPlan ex:train_main ;
+            prov:hadRole ex:implementation ] ;
+    prov:startedAt "2025-03-26T12:06:22.595876"^^xsd:dateTime ;
+    prov:used ex:train_main ;
+    prov:wasAssociatedWith ex:train_pyd8c989cd ;
+    fno:executes ex:train_main ;
+    fno:uses ex:train_mainMapping .
