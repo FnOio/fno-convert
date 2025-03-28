@@ -1,4 +1,4 @@
-import inspect, importlib, importlib.util, sys, hashlib
+import inspect, importlib, importlib.util, sys, hashlib, os
 
 from typing import Any
 from types import NoneType, FunctionType
@@ -101,7 +101,7 @@ class PythonMapper:
             module_file = inspect.getfile(imp)
 
             # Do not add the file of externally installed modules
-            if 'site-packages' not in module_file:
+            if os.getcwd() in module_file:
                 f_name = module_file
         except TypeError as e:
             pass
@@ -315,7 +315,7 @@ class PythonMapper:
         return Literal(inst, datatype=inst_type)
     
     @staticmethod
-    def any(g: ExecutableGraph):
+    def any(g: ExecutableGraph) -> URIRef:
         """
         Get the RDF representation of the 'Any' type.
 

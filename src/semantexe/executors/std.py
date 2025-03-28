@@ -15,11 +15,9 @@ class Executor(ABC):
     
     def __init__(self, g: ExecutableGraph):
         self.g = g
-        self.depth = 0
         self.handled = []
             
         self.pg = None
-        self.fun = None
         
         self.logger = ProvLogger()
     
@@ -105,24 +103,8 @@ class Executor(ABC):
         raise Exception(f"{self.__class__.__name__} is unable to execute {fun.name}.")
     
     def execute_with_mapping(self, fun: Function, *args, **kwargs):
-        # Change workdir if toplevel function
-        if self.depth == 0:
-            current_wd = os.getcwd()
-            file = self.g.get_file(fun.imp)
-            if file:
-                file_dir = os.path.dirname(file)
-                os.chdir(file_dir)
-        
         self.map(fun)
-
-        self.depth += 1
         out = self.execute_function(fun, *args, **kwargs)
-        self.depth -= 1
-        
-        # Change back to the previous workdir
-        if self.depth == 0:
-            os.chdir(current_wd)
-            
         return out
     
     def is_handled(self, uri):
@@ -133,8 +115,7 @@ class Executor(ABC):
     
     def provenance(self, fun: Function, *args, logger: ProvLogger = None, **kwargs):
         # initialize provenance graph
-        self.fun = fun
-        self.pg = ExecutableGraph()
+        self.pg = ExecutableGraph(self.g)
         
         # Execute the function
         if logger:
@@ -258,6 +239,10 @@ class Executor(ABC):
             
             # Event provenance
             ProvBuilder.usageEvent(self.pg, event_uri, exe_uri, file_uri)
+    
+    @abstractmethod
+    def accepts(self, mapping, imp):
+        pass
     
     @abstractmethod
     def accepts(self, mapping, imp):

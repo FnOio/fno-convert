@@ -110,7 +110,7 @@ class FnOBuilder():
         
     @staticmethod
     def describe_function(g: ExecutableGraph, 
-                          uri=None, name=None,
+                          uri, name=None,
                           parameters = [], 
                           outputs = []):
         """
@@ -132,7 +132,7 @@ class FnOBuilder():
         # create fno:expects container
         c_expects = create_rdf_list(g, parameters)   
 
-        # create fno:returns list
+        # create fno:returns container
         c_returns = create_rdf_list(g, outputs)
 
         g.add((uri, RDF.type, Prefix.ns('fno')["Function"]))
@@ -162,7 +162,7 @@ class FnOBuilder():
 
         triples = [
             (uri, RDF.type, Prefix.ns('fno')["Parameter"]),
-            (uri, Prefix.ns('fno')["predicate"], Prefix.base()[pred]),
+            (uri, Prefix.ns('fno')["predicate"], pred if isinstance(pred, URIRef) else Prefix.base()[pred]),
             (uri, Prefix.ns('fno')["type"], type)
         ]
 
@@ -219,7 +219,7 @@ class FnOBuilder():
     ### IMPLEMENTATION MAPPING ###
     
     @staticmethod
-    def describe_mapping(g, f, imp, f_name=None, output=None,
+    def describe_mapping(g, f, imp=None, f_name=None, output=None,
                          positional=[], keyword={}, 
                          args=set(), kargs=set(), 
                          self_output=None, 
@@ -251,9 +251,10 @@ class FnOBuilder():
         triples = [
             (s, RDF.type, Prefix.ns('fno')['Mapping']),
             (s, Prefix.ns('fno')['function'], f),
-            (s, Prefix.ns('fno')['implementation'], imp),
-            (s, Prefix.ns('fnom')['mappingMethod'], Literal("default"))  
         ]
+        
+        if imp:
+            triples.append((s, Prefix.ns('fno')['implementation'], imp))
         
         if f_name is not None:
             triples.extend([

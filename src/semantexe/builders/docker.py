@@ -42,8 +42,8 @@ class DockerBuilder:
         g.add((image, Prefix.do().includes, entity))
     
     @staticmethod
-    def entrypoint(g, image, fun, map):
-        pass
+    def container(g, image, fun):
+        g.add((image, Prefix.do().container, fun))
         
     @staticmethod
     def defaultInput(g, image, input):

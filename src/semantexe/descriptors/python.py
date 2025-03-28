@@ -96,7 +96,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
                 source_code, args = self.rewriter.rewrite(source_code)
                 
                 # URI
-                comp_uri = Prefix.base()[f"{file_name}_fileComposition"]
+                comp_uri = URIRef(f"{fun_uri}Composition")
                 
                 # FnO Parameters
                 parameters = []
@@ -645,53 +645,57 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
                 
                 self.new_scope(applied)
                 
-                # getattr call
-                fun_uri = self.g.check_call(applied)
-                value_input = MappingNode().set_function_par(fun_uri, self.g.get_self(fun_uri))
-                attr_output = self.handle_func("getattr", "getattr", getattr, [value_input, self.name_node(attr)])
-                
-                # call on attr
-                mapping = self.g.get_mapping(fun_uri, first=True)
-                positional = self.g.get_positional(mapping)
-                varpos = self.g.get_varpositional(mapping)
-                varkey = self.g.get_varkeyword(mapping)
-                
-                ## map arguments to correct applied inputs
-                new_args = [attr_output]
-                new_kargs = []
-                
-                for i, _ in enumerate(args):
-                    if i < len(positional):
-                        par = positional[i]
-                        new_args.append(MappingNode().set_function_par(fun_uri, par))
-                    else:
-                        break
-                        
-                if len(varpos) == 1:
-                    new_args.append(MappingNode().set_function_par(fun_uri, varpos[0]))
+                try:
+                    # getattr call
+                    fun_uri = self.g.check_call(applied)
+                    value_input = MappingNode().set_function_par(fun_uri, self.g.get_self(fun_uri))
+                    attr_output = self.handle_func("getattr", "getattr", getattr, [value_input, self.name_node(attr)])
                     
-                for karg in kargs:
-                    par = self.g.get_predicate_param(fun_uri, karg.arg)
-                    if par is not None:
-                        new_karg = ast.keyword(arg=karg.arg, value=MappingNode().set_function_par(fun_uri, par))
-                        new_kargs.append(new_karg)
-                        
-                if len(varkey) == 1:
-                    new_args.append(MappingNode().set_function_par(fun_uri, varkey[0]))
+                    # call on attr
+                    mapping = self.g.get_mapping(fun_uri, first=True)
+                    positional = self.g.get_positional(mapping)
+                    varpos = self.g.get_varpositional(mapping)
+                    varkey = self.g.get_varkeyword(mapping)
                     
-                attrcall_output = self.handle_func("call", "call", __call__, new_args, new_kargs)
-                
-                ## map output
-                fun_output = MappingNode().set_function_out(fun_uri, self.g.get_output(fun_uri))
-                self.handle_mapping(attrcall_output, fun_output)
-                
-                fun_selfoutput = MappingNode().set_function_out(fun_uri, self.g.get_self_output(fun_uri))
-                self.handle_mapping(value_input, fun_selfoutput)
-                
-                # create composition
-                comp_uri =  URIRef(f"{applied}Composition")
-                FnOBuilder.describe_composition(self.g, comp_uri, self.scope.mappings, represents=applied)
-                FnOBuilder.start(self.g, comp_uri, attr_output.context)
+                    ## map arguments to correct applied inputs
+                    new_args = [attr_output]
+                    new_kargs = []
+                    
+                    for i, _ in enumerate(args):
+                        if i < len(positional):
+                            par = positional[i]
+                            new_args.append(MappingNode().set_function_par(fun_uri, par))
+                        else:
+                            break
+                            
+                    if len(varpos) == 1:
+                        new_args.append(MappingNode().set_function_par(fun_uri, varpos[0]))
+                        
+                    for karg in kargs:
+                        par = self.g.get_predicate_param(fun_uri, karg.arg)
+                        if par is not None:
+                            new_karg = ast.keyword(arg=karg.arg, value=MappingNode().set_function_par(fun_uri, par))
+                            new_kargs.append(new_karg)
+                            
+                    if len(varkey) == 1:
+                        new_args.append(MappingNode().set_function_par(fun_uri, varkey[0]))
+                        
+                    attrcall_output = self.handle_func("call", "call", __call__, new_args, new_kargs)
+                    
+                    ## map output
+                    fun_output = MappingNode().set_function_out(fun_uri, self.g.get_output(fun_uri))
+                    self.handle_mapping(attrcall_output, fun_output)
+                    
+                    fun_selfoutput = MappingNode().set_function_out(fun_uri, self.g.get_self_output(fun_uri))
+                    self.handle_mapping(value_input, fun_selfoutput)
+                    
+                    # create composition
+                    comp_uri =  URIRef(f"{applied}Composition")
+                    FnOBuilder.describe_composition(self.g, comp_uri, self.scope.mappings, represents=applied)
+                    FnOBuilder.start(self.g, comp_uri, attr_output.context)
+                except Exception as e:
+                    self.restore_scope()
+                    raise e
                 
                 self.restore_scope()
 
@@ -896,19 +900,23 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         
         self.new_scope(applied)
         
-        # getattr call
-        fun_uri = self.g.check_call(applied)
-        value_input = MappingNode().set_function_par(fun_uri, self.g.get_parameter_at(fun_uri, 0))
-        attr_output = self.handle_func("getattr", "getattr", getattr, [value_input, self.name_node(attr)])
-        
-        ## map output
-        fun_output = MappingNode().set_function_out(fun_uri, self.g.get_output(fun_uri))
-        self.handle_mapping(attr_output, fun_output)
-        
-        # create composition
-        comp_uri =  URIRef(f"{applied}Composition")
-        FnOBuilder.describe_composition(self.g, comp_uri, self.scope.mappings, represents=applied)
-        FnOBuilder.start(self.g, comp_uri, attr_output.context)
+        try:
+            # getattr call
+            fun_uri = self.g.check_call(applied)
+            value_input = MappingNode().set_function_par(fun_uri, self.g.get_parameter_at(fun_uri, 0))
+            attr_output = self.handle_func("getattr", "getattr", getattr, [value_input, self.name_node(attr)])
+            
+            ## map output
+            fun_output = MappingNode().set_function_out(fun_uri, self.g.get_output(fun_uri))
+            self.handle_mapping(attr_output, fun_output)
+            
+            # create composition
+            comp_uri =  URIRef(f"{applied}Composition")
+            FnOBuilder.describe_composition(self.g, comp_uri, self.scope.mappings, represents=applied)
+            FnOBuilder.start(self.g, comp_uri, attr_output.context)
+        except Exception as e:
+            self.restore_scope()
+            raise e
         
         self.restore_scope()
         

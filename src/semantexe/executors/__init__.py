@@ -1,6 +1,6 @@
 from .executeable import Composition, Function, AppliedFunction
 from .python import PythonExecutor
-from .docker import DockerfileExecutor
+from .docker import DockerfileExecutor, DockerImageExecutor
 from ..graph import ExecutableGraph
 
 class Executor:

@@ -15,4 +15,4 @@ RUN pip install -r requirements.txt
 RUN python3 train.py
 
 # run the command on container startup
-ENTRYPOINT [ "python", "predict.py" ]
+ENTRYPOINT [ "python3", "predict.py" ]

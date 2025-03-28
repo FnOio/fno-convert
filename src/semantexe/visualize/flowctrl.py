@@ -1,5 +1,7 @@
 from PyQt6.QtCore import QObject
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QHeaderView, QTreeWidgetItem, QVBoxLayout, QLineEdit, QPushButton, QGridLayout, QComboBox
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QHeaderView, 
+                             QTreeWidgetItem, QVBoxLayout, QLineEdit, QPushButton, 
+                             QGridLayout, QComboBox, QMessageBox)
 from PyQt6.QtGui import QIntValidator, QDoubleValidator
 from rdflib import URIRef
 from pyqtgraph import TreeWidget
@@ -7,7 +9,7 @@ import os
 
 from ..executors import Function
 from ..executors.store import Terminal
-from ..executors import PythonExecutor, DockerfileExecutor
+from ..executors import PythonExecutor, DockerfileExecutor, DockerImageExecutor
 from ..graph import ExecutableGraph
 from .flowview import ExeViewWidget
 
@@ -36,14 +38,11 @@ class ExeCtrlWidget(QWidget):
         
         self.executor = None
 
-    def setFunction(self, g: ExecutableGraph, fun_uri, map_uris, imp_uri, executor):
-        self.inputWidget.executor.setCurrentText(executor)
+    def setFunction(self, g: ExecutableGraph, fun_uri, map_uri, imp_uri, executor):
+        if self.executor != "":
+            self.inputWidget.executor.setCurrentText(executor)
         
-        # TODO what if multiple mappings are accepted for the current executor?
-        if len(map_uris) == 1:
-            self.function = Function(g, fun_uri, map_uris[0], imp_uri)
-        else:
-            self.function = Function(g, fun_uri, imp_uri=imp_uri)
+        self.function = Function(g, fun_uri, map_uri, imp_uri)
         
         self.viewWidget.setFunction(self.function)
         self.inputWidget.setFunction(g, self.function)
@@ -66,7 +65,8 @@ class InputWidget(QWidget):
         
         self.executors = {
             "python": PythonExecutor,
-            "dockerfile": DockerfileExecutor
+            "dockerfile": DockerfileExecutor,
+            "dockerimage": DockerImageExecutor,
         }
         self.executor = QComboBox(self)
         self.executor.addItems(self.executors.keys())
@@ -81,6 +81,7 @@ class InputWidget(QWidget):
         self.setLayout(layout)
     
     def setFunction(self, g, function: Function):
+        self.file = g.get_file(function.imp)
         self.inputList.clear()
         self.function = function
         inputs = function.inputs()
@@ -98,12 +99,27 @@ class InputWidget(QWidget):
             inp.set(item.getInput())
             
         if self.executor is None:
-            # TODO error alert pick executor first
-            pass
+            self.show_message("Please load a turtle file first.", QMessageBox.Icon.Warning)
+            return
+        
         exe = self.executors[self.executor.currentText()](self.function.g)
+        
+        current_wd = os.getcwd()
+        if self.file:
+            file_dir = os.path.dirname(self.file)
+            os.chdir(file_dir)
+            
         pg, _ = exe.provenance(self.function)
         
+        os.chdir(current_wd)
+        
         pg.serialize("graphs/prov/prov.ttl", format="turtle")
+    
+    def show_message(self, message, icon):
+        msg_box = QMessageBox()
+        msg_box.setIcon(icon)
+        msg_box.setText(message)
+        msg_box.exec()
 
 class ConvertWidget(QWidget):
 
@@ -112,7 +128,7 @@ class ConvertWidget(QWidget):
         self.inp = inp
         self.item = item
         self.inputList = inputList
-        self.input_fields = set()
+        self.input_fields = []
 
         layout = QVBoxLayout(self)
 
@@ -128,7 +144,19 @@ class ConvertWidget(QWidget):
             button_layout = QHBoxLayout()
             
             add_button = QPushButton('+', self)
-            add_button.clicked.connect(self.add_input_field)
+            add_button.clicked.connect(lambda: self.add_input_field(True))
+            button_layout.addWidget(add_button)
+
+            remove_button = QPushButton('-', self)
+            remove_button.clicked.connect(self.remove_input_field)
+            button_layout.addWidget(remove_button)
+            
+            layout.addLayout(button_layout)
+        elif self.inp.param_mapping.keyvalue:
+            button_layout = QHBoxLayout()
+            
+            add_button = QPushButton('+', self)
+            add_button.clicked.connect(lambda: self.add_input_field(False))
             button_layout.addWidget(add_button)
 
             remove_button = QPushButton('-', self)
@@ -139,17 +167,25 @@ class ConvertWidget(QWidget):
         
         self.setLayout(layout)
     
-    def add_input_field(self):
+    def add_input_field(self, index_mapping):
         new_input_field = QLineEdit(self)
-        self.input_fields.add(new_input_field)
-        self.item.addChild(QTreeWidgetItem(['', '', '']))
-        self.inputList.setItemWidget(self.item.child(self.item.childCount() - 1), 2, new_input_field)
+        self.input_fields.append(new_input_field)
+        index = self.item.childCount()
+            
+        if index_mapping:
+            self.item.addChild(QTreeWidgetItem([str(index), '', '']))
+        else:
+            self.item.addChild(QTreeWidgetItem(['', '', '']))
+            new_input_field.key = QLineEdit(self)
+            self.inputList.setItemWidget(self.item.child(index), 0, new_input_field.key)
+            
+        self.inputList.setItemWidget(self.item.child(index), 2, new_input_field)
     
     def remove_input_field(self):
-        if self.input_fields:
-            last_input_field = self.item.child(self.item.childCount() - 1)
+        if len(self.input_fields) > 0:
+            last_input_field = self.item.child(len(self.input_fields) - 1)
             self.item.removeChild(last_input_field)
-            self.input_fields.remove(last_input_field)
+            self.input_fields.pop()
     
     def getInput(self):
         if self.inp.type == int:
@@ -161,6 +197,12 @@ class ConvertWidget(QWidget):
             for input_field in self.input_fields:
                 input.append(input_field.text())
             return input
+        elif self.inp.param_mapping.keyvalue:
+            input = {}
+            for input_field in self.input_fields:
+                input[input_field.key.text()] = input_field.text()
+            return input
+         
         return self.input_field.text()
 
 class FunctionList(QWidget):

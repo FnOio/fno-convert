@@ -101,7 +101,7 @@ class PythonExecutor(Executor):
         value[key] = assign
         
         fun.output.set(value)     
-        
+ 
     def accepts(self, mapping, imp):
         # TODO is the mapping OK based on the scope?
         return self.g.is_python(imp)

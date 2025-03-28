@@ -102,7 +102,7 @@ class ExecutableGraph(Graph):
             initNs=Prefix.NAMESPACES
         )]
         if len(next) > 1:
-            raise Exception(f"Applied function has ambigous next order: {next}")
+            raise Exception(f"Applied function {f} has ambigous next order: {next}")
         
         iterate = [x['iterate'] for x in self.query(
             f'''SELECT ?iterate WHERE {{ <{f}> fnoc:iterate ?iterate . }}''', 
@@ -1280,6 +1280,14 @@ class ExecutableGraph(Graph):
             return results[0]
         
         raise Exception(f"Unable to capture valid results: {results}")
+    
+    def get_container_mapping(self, uri: URIRef):
+        results = [ (x['con'], x['mapping']) for x in self.query(f"""
+                    SELECT ?con ?mapping WHERE {{
+                        <{uri}> do:container ?con .
+                        ?mapping fno:function ?con .
+                    }}""", initNs=Prefix.NAMESPACES)]
+        return results[0] if len(results) == 1 else None
     
     ### IMPLEMENTATION ###
     

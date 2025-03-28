@@ -1,7 +1,7 @@
 from ..graph import ExecutableGraph, get_name
-from .store import Mapping, Terminal, ValueStore, ParameterMapping
+from .store import Mapping, Terminal, ValueStore, ParameterMapping, MappingType
 from rdflib import URIRef
-from typing import Set
+from typing import Dict, List, Set
 
 class Composition:
 
@@ -181,6 +181,30 @@ class Function:
     
     def inputs(self) -> Set[Terminal]:
         return { self.terminals[id] for id in self.terminals if not self.terminals[id].is_output }
+    
+    def positional(self) -> List[Terminal]:
+        inputs = self.inputs()
+        length = max(input.param_mapping.property 
+                           for input in inputs 
+                           if input.param_mapping.get_type() == MappingType.POSITIONAL)
+        positional = [None] * (length + 1)
+        for input in inputs:
+            if input.param_mapping.get_type() == MappingType.POSITIONAL:
+                positional[input.param_mapping.property] = input
+        return positional
+    
+    def varpositional(self) -> Terminal:
+        next((input for input in self.inputs() if input.param_mapping.get_type() == MappingType.VARPOSITIONAL), None)
+    
+    def keyword(self) -> Dict[str, Terminal]:
+        return {
+            input.param_mapping.property: input 
+            for input in self.inputs() 
+            if input.param_mapping.get_type() == MappingType.KEYWORD
+        }
+    
+    def varkeyword(self) -> Terminal:
+        next((input for input in self.inputs() if input.param_mapping.get_type() == MappingType.VARKEYWORD), None)
 
     def outputs(self) -> Set[Terminal]:
         return { self.terminals[id] for id in self.terminals if self.terminals[id].is_output }

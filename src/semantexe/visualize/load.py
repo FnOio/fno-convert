@@ -1,6 +1,7 @@
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QScrollArea, QTextEdit, QVBoxLayout, QPushButton, 
-                             QFileDialog, QMessageBox, QComboBox, QLineEdit, QSizePolicy)
+                             QFileDialog, QMessageBox, QComboBox, QLineEdit, QSizePolicy,
+                             QLabel, QFrame)
 from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat
 from ..mappers import PythonMapper
 from ..graph import ExecutableGraph
@@ -13,7 +14,7 @@ import os, sys, ast, inspect, time
 class Descripter(QWidget):
 
     file_loaded = pyqtSignal(str) # signal that a file is loaded
-    resource_described = pyqtSignal(ExecutableGraph, URIRef, list, URIRef, str) # signal that a resource has been described
+    resource_described = pyqtSignal(ExecutableGraph, URIRef, URIRef, URIRef, str) # signal that a resource has been described
     # function_loaded = pyqtSignal(ExecutableGraph, URIRef, list, URIRef) # signal that a new function is loaded
     
     def __init__(self) -> None:
@@ -26,37 +27,60 @@ class Descripter(QWidget):
         self.file_button.clicked.connect(self.select_file)
         self.layout.addWidget(self.file_button)
 
+        # Add a horizontal line
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.layout.addWidget(line)
+
+        # Function select
+        self.function_label = QLabel("Function")
+        self.layout.addWidget(self.function_label)
+
         self.function_select = QComboBox()
         self.layout.addWidget(self.function_select)
 
-        self.load_button = QPushButton("Load Function")
-        self.load_button.clicked.connect(self.load_function)
-        self.layout.addWidget(self.load_button)
+        # Implementation select
+        self.imp_label = QLabel("Implementation")
+        self.layout.addWidget(self.imp_label)
+
+        self.imp_select = QComboBox()
+        self.layout.addWidget(self.imp_select)
+        self.function_select.currentIndexChanged.connect(self.get_imps)
+        self.imp_select.currentIndexChanged.connect(self.get_maps)
+        
+        # Add a horizontal line
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.layout.addWidget(line)
+
+        self.select_button = QPushButton("Select Function")
+        self.select_button.clicked.connect(self.select_function)
+        self.layout.addWidget(self.select_button)
 
         self.layout.addStretch()
 
         self.file_path = None
+        self.graph = None
+        self.map_uri = None
 
-    # TODO Allow turtle files
     def select_file(self):
         self.file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "Python Files (*.py);;Dockerfile;;Turtle Files (*.ttl)")
         if self.file_path:
+            # set current workdir
             file_dir = os.path.dirname(self.file_path)
-            sys.path.append(file_dir)  # Add the file directory to the Python path
+            prev_workdir = os.getcwd()
+            os.chdir(file_dir)
             
             if self.file_path.endswith(".py"):
                 with open(self.file_path, "r") as file:
                     source = file.read()
                     self.file_loaded.emit(source)
-                    """tree = ast.parse(source)
-
-                used_functions = ASTUtil(tree).used_functions()
-                self.function_select.clear()
-                self.function_select.addItems(used_functions)"""
                 
                 g = ExecutableGraph()
                 fun_uri, map_uris, imp_uri = PythonDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, map_uris, imp_uri, "python")
+                self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "python")
             
             if self.file_path.endswith("Dockerfile"):
                 with open(self.file_path, "r") as file:
@@ -64,7 +88,63 @@ class Descripter(QWidget):
                     self.file_loaded.emit(source)
                 g = ExecutableGraph()
                 fun_uri, map_uris, imp_uri = DockerfileDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, map_uris, imp_uri, "dockerfile")
+                self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "dockerfile")
+            
+            if self.file_path.endswith(".ttl"):
+                with open(self.file_path, "r") as file:
+                    source = file.read()
+                    self.file_loaded.emit(source)
+                self.graph = ExecutableGraph()
+                self.graph.parse(self.file_path)
+                    
+                for fun in self.graph.functions():
+                    self.function_select.addItem(self.graph.get_name(fun), fun)
+            
+            os.chdir(prev_workdir)
+    
+    def get_imps(self):
+        self.imp_select.clear()
+        
+        function_uri = self.function_select.currentData()
+        if function_uri:
+            imps = { imp for _, imp in self.graph.fun_to_imp(function_uri) }
+            for imp in imps:
+                self.imp_select.addItem(self.graph.get_name(imp), imp)
+    
+    def get_maps(self):        
+        function_uri = self.function_select.currentData()
+        imp_uri = self.imp_select.currentData()
+        if function_uri and imp_uri:
+            map_uris = self.graph.mappings(function_uri, imp_uri)
+            if len(map_uris) == 1:
+                self.map_uri = map_uris[0]
+            
+    def select_function(self):
+        
+        if not self.file_path:
+            self.show_message("Please select a file first.", QMessageBox.Icon.Warning)
+            return
+        
+        if not self.graph:
+            self.show_message("Please load a turtle file first.", QMessageBox.Icon.Warning)
+            return
+        
+        function_uri = self.function_select.currentData()
+        if not function_uri:
+            self.show_message("Please select a function first.", QMessageBox.Icon.Warning)
+            return     
+        
+        imp_uri = self.imp_select.currentData()
+        if not imp_uri:
+            self.show_message("Please select an implementation first.", QMessageBox.Icon.Warning)
+            return
+        
+        if not self.map_uri:
+            self.show_message("No suitable mapping found.", QMessageBox.Icon.Warning)
+            return
+        
+        self.resource_described.emit(self.graph, function_uri, self.map_uri, imp_uri, "")
+        
 
     def load_function(self):
         function_name = self.function_select.currentText()
