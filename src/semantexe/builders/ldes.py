@@ -1,11 +1,11 @@
 from ..prefix import Prefix
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from rdflib import RDF, RDFS, Literal
 
 class LDESBuidlder:
   
   @staticmethod
-  def fileES(g: ExecutableGraph, event_uri, stream_uri, file_uri, timestamp, shape=None):
+  def fileES(g: FnOGraph, event_uri, stream_uri, file_uri, timestamp, shape=None):
     triples = [
       (stream_uri, RDF.type, Prefix.ldes().EventStream),
       (stream_uri, Prefix.ldes().timestampPath, Prefix.prov().atTime),
@@ -20,7 +20,7 @@ class LDESBuidlder:
     LDESBuidlder.createFileEvent(g, event_uri, stream_uri, file_uri, timestamp, "File Created")
   
   @staticmethod
-  def createFileEvent(g: ExecutableGraph, event_uri, stream_uri, file_uri, timestamp, label=None):
+  def createFileEvent(g: FnOGraph, event_uri, stream_uri, file_uri, timestamp, label=None):
     triples = [
       (event_uri, RDF.type, Prefix.prov().InstantaneousEvent),
       (event_uri, Prefix.prov().atTime, Literal(timestamp)),

@@ -1,6 +1,6 @@
 import os
 
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..prefix import Prefix
 from .fno import FnOBuilder
 
@@ -47,7 +47,7 @@ class PythonBuilder:
         g.add((imp_uri, RDF.type, Prefix.ns('fnoi').PythonFunction))
     
     @staticmethod
-    def describe_file(g: ExecutableGraph, file_uri, file_path=None):
+    def describe_file(g: FnOGraph, file_uri, file_path=None):
         ### FNO IMPLEMENTATION ###
         g.add((file_uri, RDF.type, Prefix.ns('fnoi').PythonFile))
         if file_path:

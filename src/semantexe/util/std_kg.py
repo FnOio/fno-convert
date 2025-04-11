@@ -1,4 +1,4 @@
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from importlib.resources import files
 
 from rdflib import Graph
@@ -8,7 +8,7 @@ class StandardKG:
     Utility class for managing and accessing RDF dictionaries of function descriptions.
     """
     def __init__(self):
-        self.g = ExecutableGraph()
+        self.g = FnOGraph()
         self.g += Graph().parse(files("semantexe.functions").joinpath("control_flow.ttl"), format='turtle')
         self.g += Graph().parse(files("semantexe.functions").joinpath("python.ttl"), format='turtle')
         self.g += Graph().parse(files("semantexe.functions").joinpath("dockeronto.ttl"), format='turtle')

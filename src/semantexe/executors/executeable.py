@@ -1,11 +1,11 @@
-from ..graph import ExecutableGraph, get_name
+from ..graph import FnOGraph, get_name
 from .store import Mapping, Terminal, ValueStore, ParameterMapping, MappingType
 from rdflib import URIRef
 from typing import Dict, List, Set
 
 class Composition:
 
-    def __init__(self, g: ExecutableGraph, comp: URIRef, rep: "Function | AppliedFunction" = None) -> None:
+    def __init__(self, g: FnOGraph, comp: URIRef, rep: "Function | AppliedFunction" = None) -> None:
         self.uri = comp
         self.name = get_name(comp)
         self.rep = rep
@@ -106,7 +106,7 @@ class Composition:
 
 class Function:
 
-    def __init__(self, g: ExecutableGraph, fun: URIRef, map: URIRef = None, imp: URIRef = None, internal=False) -> None:
+    def __init__(self, g: FnOGraph, fun: URIRef, map: URIRef = None, imp: URIRef = None, internal=False) -> None:
         self.fun_uri = fun
         self.name = g.get_name(fun)
         self.imp = imp
@@ -234,7 +234,7 @@ class Function:
     
 class AppliedFunction(Function):
     
-    def __init__(self, g: ExecutableGraph, call: URIRef, scope: "URIRef | Function | AppliedFunction") -> None:
+    def __init__(self, g: FnOGraph, call: URIRef, scope: "URIRef | Function | AppliedFunction") -> None:
         fun = g.check_call(call)
         self.call_uri = call
         self.scope = scope

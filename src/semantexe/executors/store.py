@@ -1,4 +1,4 @@
-from ..graph import get_name, ExecutableGraph
+from ..graph import get_name, FnOGraph
 from ..mappers import PythonMapper
 from rdflib import URIRef
 from enum import Enum, auto
@@ -11,7 +11,7 @@ class MappingType(Enum):
 
 class ParameterMapping:
 
-    def __init__(self, g: ExecutableGraph, mapping: URIRef, par: URIRef) -> None:
+    def __init__(self, g: FnOGraph, mapping: URIRef, par: URIRef) -> None:
         self.property = None
         self.type = None
         self.index = False

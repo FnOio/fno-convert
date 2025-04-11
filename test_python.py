@@ -1,7 +1,7 @@
 import traceback
 
 from semantexe.descriptors import ResourceDescriptor
-from semantexe.graph import ExecutableGraph
+from semantexe.graph import FnOGraph
 from semantexe.executors.python import PythonExecutor
 from semantexe.executors.executeable import Function
 
@@ -11,7 +11,7 @@ DD_PY_FILE = "docker_examples/data-driven/job/run.py"
 SIMPLE_PY_FILE = "docker_examples/simple/run.py"
 
 if __name__ == "__main__":
-  g = ExecutableGraph()
+  g = FnOGraph()
   descriptor = ResourceDescriptor(g)
   print("Describing resource...")
   fun_uri = descriptor.describe(train)

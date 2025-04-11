@@ -23,6 +23,7 @@ class ProvLogger:
     def stop(self):
         self.observer.stop()
         self.observer.join()
+        self.loggers["msg"].stop()
     
     def append(self, fun):
         self.scope.append(fun)
@@ -38,18 +39,22 @@ class ProvLogger:
 
 class MessageLogger:
   
-  def __init__(self):
-      self.stdout = ConsoleStreamHandler(sys.stdout)
-      self.stderr = ConsoleStreamHandler(sys.stderr)
-      
-      sys.stdout = self.stdout
-      sys.stderr = self.stderr
-      
-      self.scope = deque()
+    def __init__(self):
+        self.stdout = ConsoleStreamHandler(sys.stdout)
+        self.stderr = ConsoleStreamHandler(sys.stderr)
+        
+        sys.stdout = self.stdout
+        sys.stderr = self.stderr
+        
+        self.scope = deque()
     
-  def set_fun(self, fun):
-    self.stdout.fun = fun
-    self.stderr.fun = fun
+    def set_fun(self, fun):
+        self.stdout.fun = fun
+        self.stderr.fun = fun
+        
+    def stop(self):
+        sys.stdout = self.stdout.original_handler
+        sys.stderr = self.stderr.original_handler
 
 class ConsoleStreamHandler:
   

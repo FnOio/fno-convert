@@ -1,7 +1,7 @@
 from .executeable import Function, AppliedFunction
-from .std import Executor
+from .std import Executer
 from .store import MappingType
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..prefix import Prefix
 from ..util.python.script import CallableScript
 
@@ -40,10 +40,10 @@ def load_function_from_source(file_path, function_name):
     except AttributeError as e:
         return
 
-class PythonExecutor(Executor):
+class PythonExecutor(Executer):
     
     @staticmethod
-    def python_object(g: ExecutableGraph, uri):
+    def python_object(g: FnOGraph, uri):
         if uri is None:
             return Any
         

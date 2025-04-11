@@ -1,5 +1,5 @@
 from rdflib import URIRef
-from ...graph import ExecutableGraph
+from ...graph import FnOGraph
 from ...prefix import Prefix
 from ...builders import DockerBuilder, ProvBuilder, FnOBuilder
 from ...mappers import DockerMapper, PythonMapper
@@ -7,7 +7,7 @@ from ...util.file import move_file
 from ...util.mapping import Mapping, MappingNode
 from ...descriptors import FileDescriptor
 from ..executeable import Function
-from ..std import Executor
+from ..std import Executer
 
 import os, subprocess, docker
 from pathspec import PathSpec
@@ -37,9 +37,9 @@ def docker_build(dirpath, tag):
         print(f"Error during Docker build: {e.stderr}")
         raise
 
-class DockerfileExecutor(Executor):
+class DockerfileExecutor(Executer):
     
-    def __init__(self, g: ExecutableGraph):
+    def __init__(self, g: FnOGraph):
         super().__init__(g)
         
         self.handled = {
@@ -78,7 +78,7 @@ class DockerfileExecutor(Executor):
         
         return self.pg
     
-    def build(self, fun: Function) -> ExecutableGraph:
+    def build(self, fun: Function) -> FnOGraph:
         self.fileDescriptor = FileDescriptor(self.pg)
         
         # Get the Dockerfile metadata
@@ -100,18 +100,18 @@ class DockerfileExecutor(Executor):
         image = client.images.get(tag)
     
         # describe the image
-        self.image_uri, image_tag = DockerMapper.map_image(self.pg, image)
-        fun.output.set(self.image_uri)
+        self.imp_uri, image_tag = DockerMapper.map_image(self.pg, image)
+        fun.output.set(self.imp_uri)
         
-        # create container function uri
-        self.container_uri = Prefix.ns('docker')[f"{image_tag}{image.short_id.removeprefix('sha256:')}"]
-        self.container_name = tag
+        # create function uri
+        self.fun_uri = Prefix.base()[f"{image_tag}{image.short_id.removeprefix('sha256:')}"]
+        self.image_name = tag
     
     def provenance(self, fun: Function, *args, **kwargs):
         _, exe_uri = super().provenance(fun, *args, **kwargs)
         
         # Image was derived from Dockerfile
-        ProvBuilder.derivedFrom(self.pg, self.image_uri, fun.imp)
+        ProvBuilder.derivedFrom(self.pg, self.imp_uri, fun.imp)
         
         # TODO implement command descriptor
         if self.entrypoint_cmd and self.entrypoint_cmd.startswith("python"):
@@ -121,10 +121,10 @@ class DockerfileExecutor(Executor):
                 file = os.path.join(self.workdir, self.entrypoint_params[0])
                 imp_uri, map_uri, fun_uri = self.pg.imp_from_file(file)[0]
                 
+                # Describe the image function
                 rep = Function(self.pg, fun_uri, map_uri, imp_uri)
+                ProvBuilder.alternateOf(self.pg, self.imp_uri, rep.imp)
                 
-                # Create internal composition based on entrypoint
-                comp_uri = URIRef(f"{self.container_uri}Composition")
                 mappings = []
                 
                 inputs = []
@@ -135,64 +135,148 @@ class DockerfileExecutor(Executor):
                 
                 rep_positional = rep.positional()
                 for i, term in enumerate(rep_positional):
-                    param_uri = URIRef(f"{self.container_uri}Parameter{i}")
+                    param_uri = URIRef(f"{self.fun_uri}Parameter{i}")
                     FnOBuilder.describe_parameter(self.pg, param_uri, 
-                                                  PythonMapper.obj_to_fno(self.pg, term.type), 
-                                                  term.pred)
+                                                    PythonMapper.obj_to_fno(self.pg, term.type), 
+                                                    term.pred)
                     positional.append(param_uri)
                     inputs.append(param_uri)
                     if term.param_mapping.index:
                         varpos.add(param_uri)
                     
-                    mapfrom = MappingNode().set_function_par(self.container_uri, param_uri)
-                    mapto = MappingNode().set_function_par(fun_uri, term.uri)
+                    mapfrom = MappingNode().set_function_par(self.fun_uri, param_uri)
+                    mapto = MappingNode().set_function_par(rep.fun_uri, term.uri)
                     mappings.append(Mapping(mapfrom, mapto))
                 
                 rep_keywords = rep.keyword()
                 for key, term in rep_keywords.items():
-                    param_uri = URIRef(f"{self.container_uri}Parameter{key}")
+                    param_uri = URIRef(f"{self.fun_uri}Parameter{key}")
                     FnOBuilder.describe_parameter(self.pg, param_uri, 
-                                                  PythonMapper.obj_to_fno(self.pg, term.type), 
-                                                  term.pred)
+                                                    PythonMapper.obj_to_fno(self.pg, term.type), 
+                                                    term.pred)
                     keywords[key] = param_uri
                     inputs.append(param_uri)
                     
-                    mapfrom = MappingNode().set_function_par(self.container_uri, param_uri)
-                    mapto = MappingNode().set_function_par(fun_uri, term.uri)
+                    mapfrom = MappingNode().set_function_par(self.fun_uri, param_uri)
+                    mapto = MappingNode().set_function_par(rep.fun_uri, term.uri)
                     mappings.append(Mapping(mapfrom, mapto))
                 
                 rep_varpos = rep.varpositional()
                 if rep_varpos:
-                    param_uri = URIRef(f"{self.container_uri}Args")
+                    param_uri = URIRef(f"{self.fun_uri}Args")
                     FnOBuilder.describe_parameter(self.pg, param_uri, 
-                                                  PythonMapper.obj_to_fno(self.pg, rep_varpos.type), 
-                                                  rep_varpos.pred)
+                                                    PythonMapper.obj_to_fno(self.pg, rep_varpos.type), 
+                                                    rep_varpos.pred)
                     varpos.add(param_uri)
                     inputs.append(param_uri)
                     
-                    mapfrom = MappingNode().set_function_par(self.container_uri, param_uri)
-                    mapto = MappingNode().set_function_par(fun_uri, rep_varpos.uri)
+                    mapfrom = MappingNode().set_function_par(self.fun_uri, param_uri)
+                    mapto = MappingNode().set_function_par(rep.fun_uri, rep_varpos.uri)
                     mappings.append(Mapping(mapfrom, mapto))
                 
                 rep_varkey = rep.varkeyword()
                 if rep_varkey:
-                    param_uri = URIRef(f"{self.container_uri}Kargs")
+                    param_uri = URIRef(f"{self.fun_uri}Kargs")
                     FnOBuilder.describe_parameter(self.pg, param_uri, 
-                                                  PythonMapper.obj_to_fno(self.pg, rep_varkey.type), 
-                                                  rep_varkey.pred)
+                                                    PythonMapper.obj_to_fno(self.pg, rep_varkey.type), 
+                                                    rep_varkey.pred)
                     varkey.add(param_uri)
                     inputs.append(param_uri)
                     
-                    mapfrom = MappingNode().set_function_par(self.container_uri, param_uri)
-                    mapto = MappingNode().set_function_par(fun_uri, rep_varkey.uri)
+                    mapfrom = MappingNode().set_function_par(fun_uri, param_uri)
+                    mapto = MappingNode().set_function_par(rep.fun_uri, rep_varkey.uri)
                     mappings.append(Mapping(mapfrom, mapto))
+                    
+                FnOBuilder.describe_function(self.pg, self.fun_uri, self.image_name, parameters=inputs)
+                map_uri = FnOBuilder.describe_mapping(self.pg, self.fun_uri, self.imp_uri,
+                                            f_name=f"docker run {self.image_name}",
+                                            positional=positional, keyword=keywords,
+                                            args=varpos, kargs=varkey)
+                comp_uri = URIRef(f"{self.fun_uri}Composition")
+                FnOBuilder.describe_composition(self.pg, comp_uri, mappings, represents=self.fun_uri)
+                FnOBuilder.start(self.pg, comp_uri, rep.fun_uri)
                 
-                # TODO implement execute_cmd
-                # TODO set cmd_params as default values in the mapping
+            except IndexError as e:
+                print(f"[ERROR] No Python implementation found for {file}")
                 
-                # TODO entrypoint parameters must be mapped with a composition to the representation
-                # TODO mapped parameters must not be included in the function description
-                """if len(self.entrypoint_params) > 1:
+        return self.pg, exe_uri
+    
+    def no_execution(self, fun: Function, *args, **kwargs):
+        pass
+    
+    def execute_run(self, fun: Function, *args, **kwargs):
+        if fun.internal:
+            fun.comp.execute(self)
+
+    def execute_copy(self, fun: Function, *args, **kwargs):
+        # Describe all files inside the src directory
+        src_dir = fun[Prefix.do().copySrc].value.replace('.', self.dir)
+        dest_dir = fun[Prefix.do().copyDest].value.replace('.', self.workdir)
+        
+        # recursively find all files in all subdirectories
+        copied_uris = set()
+        for file in self.iterate_files():
+            try:
+                self.fileDescriptor.describe_resource(os.path.join(os.getcwd(), file))
+            except ValueError as e:
+                pass
+            
+            for uri in [ uri for uri in self.pg.functions() if uri not in copied_uris]:
+                copied_uris.add(uri)
+                # Get the original implementation **Just one imp expected**
+                for mapping, imp in self.pg.fun_to_imp(uri):
+                    # Copy the implementation
+                    imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
+                    if imp_copy:
+                        # Provenance
+                        ProvBuilder.alternateOf(self.pg, imp_copy, imp)
+                        DockerBuilder.includes(self.pg, self.imp_uri, imp_copy)
+
+    def execute_workdir(self, fun: Function, *args, **kwargs):
+        # Set workdir
+        value = fun[Prefix.do().workdirInput].value
+        self.workdir = '' if value == '.' else value
+    
+    def execute_entrypoint(self, fun: Function, *args, **kwargs):
+        self.entrypoint_cmd = fun[Prefix.do().entrypointInputCommand].get()
+        self.entrypoint_params = fun[Prefix.do().entrypointInputParamList].to_list()
+        self.entrypoint_params = [word for string in self.entrypoint_params for word in string.split(' ')]
+    
+    def execute_cmd(self, fun: Function, *args, **kwargs):
+        value = fun[Prefix.do().cmdInputParamList].to_list()
+        if self.entrypoint_cmd:
+            self.entrypoint_params.extend(value)
+        else:
+            self.entrypoint_cmd = value[0]
+            if len(value) > 1:
+                self.entrypoint_params.extend(value[1:])
+    
+    def alt_executor(self, fun):
+        # Use the python executor to capture provenance locally
+        from ..python import PythonExecutor
+        executor = PythonExecutor(self.pg)
+        
+        _, exe_uri = executor.provenance(fun, logger=self.logger)
+
+        fun.prov.informed.append(exe_uri)
+
+    def load_dockerignore(self):
+        patterns = ['Dockerfile', '.dockerignore']
+        if os.path.exists('.dockerignore'):
+            with open('.dockerignore', 'r') as file:
+                patterns.extend(file.readlines())
+            self.ignore = PathSpec.from_lines('gitwildmatch', patterns)
+        else:
+            self.ignore = None
+        
+    def iterate_files(self):
+        for root, _, files in os.walk('.'):            
+            for file in files:
+                file_path = os.path.relpath(os.path.join(root, file), '.')
+                if not self.ignore or not self.ignore.match_file(file_path):
+                    yield file_path
+    
+    """if len(self.entrypoint_params) > 1:
                     i = 1
                     while i < len(self.entrypoint_params):
                         param = self.entrypoint_params[i]
@@ -247,93 +331,3 @@ class DockerfileExecutor(Executor):
                                     k += 1
                                 i = k
                         i += 1"""
-                
-                # Describe the container function
-                FnOBuilder.describe_function(self.pg, self.container_uri, self.container_name, parameters=inputs)
-                FnOBuilder.describe_mapping(self.pg, self.container_uri,
-                                            f_name="docker start",
-                                            positional=positional, keyword=keywords,
-                                            args=varpos, kargs=varkey)
-                DockerBuilder.container(self.pg, self.image_uri, self.container_uri)
-                FnOBuilder.describe_composition(self.pg, comp_uri, mappings, represents=self.container_uri)
-                FnOBuilder.start(self.pg, comp_uri, fun_uri)
-            except IndexError as e:
-                print(f"[ERROR] No Python implementation found for {file}")
-                
-        return self.pg, exe_uri
-    
-    def no_execution(self, fun: Function, *args, **kwargs):
-        pass
-    
-    def execute_run(self, fun: Function, *args, **kwargs):
-        if fun.internal:
-            fun.comp.execute(self)
-
-    def execute_copy(self, fun: Function, *args, **kwargs):
-        # Describe all files inside the src directory
-        src_dir = fun[Prefix.do().copySrc].value.replace('.', self.dir)
-        dest_dir = fun[Prefix.do().copyDest].value.replace('.', self.workdir)
-        
-        # recursively find all files in all subdirectories
-        copied_uris = set()
-        for file in self.iterate_files():
-            try:
-                self.fileDescriptor.describe_resource(os.path.join(os.getcwd(), file))
-            except ValueError as e:
-                pass
-            
-            for uri in [ uri for uri in self.pg.functions() if uri not in copied_uris]:
-                copied_uris.add(uri)
-                # Get the original implementation **Just one imp expected**
-                for mapping, imp in self.pg.fun_to_imp(uri):
-                    # Copy the implementation
-                    imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
-                    if imp_copy:
-                        # Provenance
-                        ProvBuilder.alternateOf(self.pg, imp_copy, imp)
-                        DockerBuilder.includes(self.pg, self.image_uri, imp_copy)
-
-    def execute_workdir(self, fun: Function, *args, **kwargs):
-        # Set workdir
-        value = fun[Prefix.do().workdirInput].value
-        self.workdir = '' if value == '.' else value
-    
-    def execute_entrypoint(self, fun: Function, *args, **kwargs):
-        self.entrypoint_cmd = fun[Prefix.do().entrypointInputCommand].get()
-        self.entrypoint_params = fun[Prefix.do().entrypointInputParamList].to_list()
-        self.entrypoint_params = [word for string in self.entrypoint_params for word in string.split(' ')]
-    
-    def execute_cmd(self, fun: Function, *args, **kwargs):
-        value = fun[Prefix.do().cmdInputParamList].to_list()
-        if self.entrypoint_cmd:
-            self.entrypoint_params.extend(value)
-        else:
-            self.entrypoint_cmd = value[0]
-            if len(value) > 1:
-                self.entrypoint_params.extend(value[1:])
-    
-    def alt_executor(self, fun):
-        # Use the python executor to capture provenance locally
-        from ..python import PythonExecutor
-        executor = PythonExecutor(self.g)
-        
-        pg, exe_uri = executor.provenance(fun, logger=self.logger)
-
-        self.pg += pg
-        fun.prov.informed.append(exe_uri)
-
-    def load_dockerignore(self):
-        patterns = ['Dockerfile', '.dockerignore']
-        if os.path.exists('.dockerignore'):
-            with open('.dockerignore', 'r') as file:
-                patterns.extend(file.readlines())
-            self.ignore = PathSpec.from_lines('gitwildmatch', patterns)
-        else:
-            self.ignore = None
-        
-    def iterate_files(self):
-        for root, _, files in os.walk('.'):            
-            for file in files:
-                file_path = os.path.relpath(os.path.join(root, file), '.')
-                if not self.ignore or not self.ignore.match_file(file_path):
-                    yield file_path

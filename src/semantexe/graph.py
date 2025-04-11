@@ -51,7 +51,7 @@ def to_uri(prefix, s):
     """
     return URIRef(f"{prefix}#{s}")
 
-class ExecutableGraph(Graph):
+class FnOGraph(Graph):
     """
     A subclass of rdflib.Graph tailored for handling pipeline graphs
     with specific functionalities for managing function descriptions.
@@ -68,7 +68,10 @@ class ExecutableGraph(Graph):
         if graph:
             self += graph
         
-        self.f_counter = {}
+        if isinstance(graph, FnOGraph):
+            self.f_counter = graph.f_counter
+        else:
+            self.f_counter = {}
     
     def exists(self, uri):
         return uri in self.subjects() or uri in self.objects() or uri in self.predicates()
@@ -1075,7 +1078,7 @@ class ExecutableGraph(Graph):
         
         return dependencies
      
-    def get_function_description(self, f_uri) -> "ExecutableGraph":
+    def get_function_description(self, f_uri) -> "FnOGraph":
           """
           Retrieve the description of a function, including its parameters, outputs, implementation, and other related information.
 
@@ -1240,7 +1243,7 @@ class ExecutableGraph(Graph):
                ''', initNs=Prefix.NAMESPACES)
           ])
 
-          desc = Prefix.bind_namespaces(ExecutableGraph())
+          desc = Prefix.bind_namespaces(FnOGraph())
           [ desc.add(x) for x in triples ]
           return desc
       
@@ -1269,11 +1272,14 @@ class ExecutableGraph(Graph):
     def is_dockerimage(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:DockerImage . }}""", initNs=Prefix.NAMESPACES)
     
+    def is_dockercontainer(self, uri: URIRef):
+        return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:DockerContainer . }}""", initNs=Prefix.NAMESPACES)
+    
     def get_tag(self, uri: URIRef):
         results = [ x['tag'].value for x in self.query(f"""
                 SELECT ?tag WHERE {{
                     <{uri}> a fnoi:DockerImage ;
-                        rdfs:label ?tag .                                
+                        fnoi:tag ?tag .                                
                 }}""", initNs=Prefix.NAMESPACES) ]
         
         if len(results) == 1:
@@ -1287,6 +1293,19 @@ class ExecutableGraph(Graph):
                         <{uri}> do:container ?con .
                         ?mapping fno:function ?con .
                     }}""", initNs=Prefix.NAMESPACES)]
+        return results[0] if len(results) == 1 else None
+    
+    def get_container_id(self, uri: URIRef):
+        query = f'''
+        SELECT ?id WHERE {{
+            <{uri}> fnoi:id ?id .
+        }}'''
+        
+        results = [ x['id'].value for x in self.query(query, initNs=Prefix.NAMESPACES)]
+        
+        if len(results) > 1:
+            raise Exception(f"Container {uri} has multiple ids: {results}")
+        
         return results[0] if len(results) == 1 else None
     
     ### IMPLEMENTATION ###

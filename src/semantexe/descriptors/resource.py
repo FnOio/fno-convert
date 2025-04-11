@@ -1,11 +1,11 @@
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 
 from abc import ABC, abstractmethod
 
 class IDescriptor(ABC):
     
     @abstractmethod
-    def describe_resource(self, g: ExecutableGraph, resource):
+    def describe_resource(self, g: FnOGraph, resource):
         pass
     
     @abstractmethod
@@ -30,7 +30,7 @@ class ResourceDescriptor:
     
     _start: AbstractResourceDescriptor = None
     
-    def __init__(self, g: ExecutableGraph):
+    def __init__(self, g: FnOGraph):
         from .file import FileDescriptor, DirectoryDescriptor
         from .python import PythonDescriptor
         

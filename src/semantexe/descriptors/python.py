@@ -24,7 +24,7 @@ from ..util.python.rewrite import ASTRewriter
 from ..builders import PythonBuilder, FnOBuilder
 from ..util.python.scope import ScopeState
 from ..util.std_kg import STD_KG
-from ..graph import ExecutableGraph, get_name
+from ..graph import FnOGraph, get_name
 from ..prefix import Prefix
 from ..mappers import PythonMapper, FileMapper
 from ..descriptors.file import AbstractFileDescriptor
@@ -37,7 +37,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
     def name_node(name: str):
         return ast.Name(id=name, ctx=ast.Load())
     
-    def __init__(self, g: ExecutableGraph, max_depth=3) -> None:
+    def __init__(self, g: FnOGraph, max_depth=3) -> None:
         self.g = g
         self.executor = PythonExecutor(g)
         self.importer = Importer()
@@ -284,7 +284,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
                 else:
                     FnOBuilder.link(self.g, *self.scope.prev_function, self.scope.block_order[exit.target])
         
-        # Variables used in previous blocks have ambiguos mapping
+        # Variables used in other blocks have ambiguos mapping
         for var in self.scope.assigned:
             if var not in self.scope.used_by:
                 self.scope.used_by[var] = set()

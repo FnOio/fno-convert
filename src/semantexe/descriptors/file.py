@@ -1,4 +1,4 @@
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..mappers import FileMapper
 from .resource import AbstractResourceDescriptor
 
@@ -38,7 +38,7 @@ def get_all_filepaths(directory):
 
 class DirectoryDescriptor(AbstractResourceDescriptor):
     
-    def __init__(self, g: ExecutableGraph):
+    def __init__(self, g: FnOGraph):
         self._fileDescriptor = FileDescriptor(g)
     
     def describe_resource(self, resource):
@@ -60,7 +60,7 @@ class FileDescriptor(AbstractResourceDescriptor):
     
     _start: AbstractFileDescriptor = None
     
-    def __init__(self, g: ExecutableGraph):
+    def __init__(self, g: FnOGraph):
         from .python import PythonDescriptor
         from .docker import DockerfileDescriptor
         

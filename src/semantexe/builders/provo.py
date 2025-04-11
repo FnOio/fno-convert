@@ -1,4 +1,4 @@
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..prefix import Prefix
 from rdflib import RDF, BNode, Literal
 
@@ -57,7 +57,7 @@ class ProvBuilder:
         g.add((ent, RDF.value, value))
     
     @staticmethod
-    def execution(g: ExecutableGraph, exe, fun, imp, startedAt, endendAt):
+    def execution(g: FnOGraph, exe, fun, imp, startedAt, endendAt):
         
         # Set PROV-O types
         ProvBuilder.activity(g, exe)

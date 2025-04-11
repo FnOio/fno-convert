@@ -1,6 +1,6 @@
 from rdflib import URIRef
 
-from ...graph import ExecutableGraph
+from ...graph import FnOGraph
 from ...prefix import Prefix
 from ...builders import FnOBuilder
 from ...mappers.python import PythonMapper
@@ -13,7 +13,7 @@ PACKAGE_PRED = Prefix.ns('fnoi').package
 DOC_PRED = Prefix.ns('dcterms').description
 
 # TODO make move_file more general, it uses knowledge of Python Implementation too much
-def move_file(g: ExecutableGraph, mapping, imp, src, dest):
+def move_file(g: FnOGraph, mapping, imp, src, dest):
         new_imp = None
         metadata = g.get_imp_metadata(imp)
         

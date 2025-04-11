@@ -1,14 +1,14 @@
 import os
 from rdflib import RDF, URIRef, Literal
 
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..prefix import Prefix
 from .fno import FnOBuilder
 
 class DockerBuilder:
     
     @staticmethod
-    def describe_dockerfile(g: ExecutableGraph, rel_path, fun_uri, file_uri):
+    def describe_dockerfile(g: FnOGraph, rel_path, fun_uri, file_uri):
         abs_path = os.path.abspath(rel_path)
         dir_name = os.path.basename(os.path.dirname(rel_path))
            

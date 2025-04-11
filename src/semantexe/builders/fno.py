@@ -1,7 +1,7 @@
 from rdflib import RDF, BNode, Literal, URIRef
 
 from ..prefix import Prefix
-from ..graph import ExecutableGraph, create_rdf_list, get_name
+from ..graph import FnOGraph, create_rdf_list, get_name
 
 class FnOBuilder():
     """
@@ -10,12 +10,12 @@ class FnOBuilder():
     """
     
     @staticmethod
-    def map(g: ExecutableGraph, fun, map, imp):
+    def map(g: FnOGraph, fun, map, imp):
         g.add((map, Prefix.ns('fno').function, fun))
         g.add((map, Prefix.ns('fno').implementation, imp))
 
     @staticmethod
-    def apply(g: ExecutableGraph, call, f):
+    def apply(g: FnOGraph, call, f):
         """
         Apply a call to a function.
 
@@ -29,16 +29,16 @@ class FnOBuilder():
         g.add((call, Prefix.ns('fnoc')["applies"], f))
     
     @staticmethod
-    def link(g: ExecutableGraph, call1, pred, call2):
+    def link(g: FnOGraph, call1, pred, call2):
         if call1 is not None and call2 is not None:
             g.add((call1, Prefix.ns('fnoc')[pred], call2))
     
     @staticmethod
-    def start(g: ExecutableGraph, comp, call):
+    def start(g: FnOGraph, comp, call):
         g.add((comp, Prefix.ns('fnoc')["start"], call))
 
     @staticmethod
-    def describe_composition(g: ExecutableGraph, comp, mappings, represents=None):
+    def describe_composition(g: FnOGraph, comp, mappings, represents=None):
         """
         Describe a composition.
 
@@ -109,7 +109,7 @@ class FnOBuilder():
         return comp_uri
         
     @staticmethod
-    def describe_function(g: ExecutableGraph, 
+    def describe_function(g: FnOGraph, 
                           uri, name=None,
                           parameters = [], 
                           outputs = []):
@@ -145,7 +145,7 @@ class FnOBuilder():
         return uri
 
     @staticmethod
-    def describe_parameter(g: ExecutableGraph, uri, type, pred):
+    def describe_parameter(g: FnOGraph, uri, type, pred):
         """
         Describe a parameter.
 
@@ -171,7 +171,7 @@ class FnOBuilder():
         return uri
     
     @staticmethod
-    def describe_output(g: ExecutableGraph, uri, type, pred):
+    def describe_output(g: FnOGraph, uri, type, pred):
         """
         Describe an output.
 
@@ -195,7 +195,7 @@ class FnOBuilder():
         return uri
     
     @staticmethod
-    def describe_implementation(g: ExecutableGraph, imp_uri, imp_name):
+    def describe_implementation(g: FnOGraph, imp_uri, imp_name):
         """
         Describe the implementation of a function.
 
@@ -362,11 +362,11 @@ class FnOBuilder():
         return s
     
     @staticmethod
-    def implementation(g: ExecutableGraph, mapping, imp):
+    def implementation(g: FnOGraph, mapping, imp):
         g.add((mapping, Prefix.ns('fno').implementation, imp))
     
     @staticmethod
-    def describe_execution(g: ExecutableGraph, exe, fun, mapping, inputs):
+    def describe_execution(g: FnOGraph, exe, fun, mapping, inputs):
         g.add((exe, RDF.type, Prefix.ns('fno').Execution))
         g.add((exe, Prefix.ns('fno').executes, fun))
         

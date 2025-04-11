@@ -3,7 +3,7 @@ from datetime import datetime
 from rdflib import URIRef
 import traceback, os, hashlib
 
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from .executeable import Function, AppliedFunction, Composition
 from .store import Terminal
 from ..builders import ProvBuilder, FnOBuilder, LDESBuidlder
@@ -11,15 +11,14 @@ from ..mappers import PythonMapper, FileMapper
 from ..util.prov import ProvLogger
 from ..prefix import Prefix
 
-class Executor(ABC):
+class Executer(ABC):
     
-    def __init__(self, g: ExecutableGraph):
+    def __init__(self, g: FnOGraph):
         self.g = g
         self.handled = []
             
         self.pg = None
-        
-        self.logger = ProvLogger()
+        self.logger = None
     
     def execute(self, fun: Function, *args, **kwargs):
         self.logger.append(fun)
@@ -113,23 +112,13 @@ class Executor(ABC):
     def handle(self, fun: Function, *args, **kwargs):
         return self.handled[fun.fun_uri](fun, *args, **kwargs)
     
-    def provenance(self, fun: Function, *args, logger: ProvLogger = None, **kwargs):
+    def provenance(self, fun: Function, *args, logger: ProvLogger, **kwargs):
         # initialize provenance graph
-        self.pg = ExecutableGraph(self.g)
+        self.pg = FnOGraph(self.g)
         
         # Execute the function
-        if logger:
-            prev_logger = self.logger
-            self.logger = logger
-        else:
-            self.logger.start()
-            
+        self.logger = logger   
         exe_uri = self.execute(fun, *args, **kwargs)
-        
-        if not logger:
-            self.logger.stop()
-        else:
-            self.logger = prev_logger
         
         # Return provenance graph
         return self.pg, exe_uri

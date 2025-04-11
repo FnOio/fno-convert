@@ -6,7 +6,7 @@ from docker.models.containers import Container
 
 from ..builders import FnOBuilder
 from ..prefix import Prefix
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from .python import PythonMapper
 
 class DockerMapper:
@@ -17,21 +17,8 @@ class DockerMapper:
         return Prefix.ns('docker')[f"{name}{unique_hash}"]
     
     @staticmethod
-    def map_image(g: ExecutableGraph, image: Image):
+    def map_image(g: FnOGraph, image: Image):
         image_tag = image.attrs['RepoTags'][0].replace(':', '_')
-        
-        ### FUNCTION ###
-        
-        fun_uri = Prefix.base()[f"docker_image"]
-        
-        args = URIRef(f"{fun_uri}Arguments")
-        FnOBuilder.describe_parameter(g, args, PythonMapper.any(g), "args")
-        kargs = URIRef(f"{fun_uri}Keywords")
-        FnOBuilder.describe_parameter(g, kargs, PythonMapper.any(g), "kargs")
-        out = URIRef(f"{fun_uri}Output")
-        FnOBuilder.describe_output(g, out, PythonMapper.any(g), "container")
-        
-        FnOBuilder.describe_function(g, fun_uri, "docker create", [args, kargs], [out])
         
         ### IMPLEMENTATION ###
         
@@ -41,18 +28,13 @@ class DockerMapper:
         
         # Image metadata
         # TODO Dockerpedia annotater, now simply state labels
-        for tag in image.tags:
-            g.add((imp_uri, Prefix.ns('rdfs').label, Literal(tag)))
-            
-        ### MAPPING ###
-        
-        FnOBuilder.describe_mapping(g, fun_uri, imp_uri, "docker create",
-                                    args={args}, kargs={kargs}, output=out)
+        g.add((imp_uri, Prefix.ns('fnoi').tag, Literal(image.attrs['RepoTags'][0])))
+        g.add((imp_uri, Prefix.ns('rdfs').label, Literal(image.attrs['RepoTags'][0])))
         
         return imp_uri, image_tag
     
     @staticmethod
-    def map_container(g: ExecutableGraph, container: Container):
+    def map_container(g: FnOGraph, container: Container):
         uri = Prefix.ns('docker')[f"{container.name}{container.short_id.removeprefix('sha256:')}"]
         g.add((uri, RDF.type, Prefix.ns('do').Container))
         g.add((uri, RDF.type, Prefix.ns('fnoi').DockerContainer))

@@ -9,8 +9,9 @@ import os
 
 from ..executors import Function
 from ..executors.store import Terminal
-from ..executors import PythonExecutor, DockerfileExecutor, DockerImageExecutor
-from ..graph import ExecutableGraph
+from ..executors import PythonExecutor, DockerfileExecutor, DockerImageExecutor, DockerContainerExecuter
+from ..util.prov import ProvLogger
+from ..graph import FnOGraph
 from .flowview import ExeViewWidget
 
 class ExeCtrlWidget(QWidget):
@@ -38,7 +39,7 @@ class ExeCtrlWidget(QWidget):
         
         self.executor = None
 
-    def setFunction(self, g: ExecutableGraph, fun_uri, map_uri, imp_uri, executor):
+    def setFunction(self, g: FnOGraph, fun_uri, map_uri, imp_uri, executor):
         if self.executor != "":
             self.inputWidget.executor.setCurrentText(executor)
         
@@ -67,6 +68,7 @@ class InputWidget(QWidget):
             "python": PythonExecutor,
             "dockerfile": DockerfileExecutor,
             "dockerimage": DockerImageExecutor,
+            "dockercontainer": DockerContainerExecuter,
         }
         self.executor = QComboBox(self)
         self.executor.addItems(self.executors.keys())
@@ -108,8 +110,11 @@ class InputWidget(QWidget):
         if self.file:
             file_dir = os.path.dirname(self.file)
             os.chdir(file_dir)
-            
-        pg, _ = exe.provenance(self.function)
+
+        logger = ProvLogger()
+        logger.start()
+        pg, _ = exe.provenance(self.function, logger=logger)
+        logger.stop()
         
         os.chdir(current_wd)
         

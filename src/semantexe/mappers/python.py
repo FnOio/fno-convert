@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from ..prefix import Prefix
 from ..builders import PythonBuilder, FnOBuilder
-from ..graph import ExecutableGraph, get_name
+from ..graph import FnOGraph, get_name
 
 _toPythonMapping[Prefix.ns('xsd').string] = str
 
@@ -61,7 +61,7 @@ class PythonMapper:
         return Prefix.ns('python')[f"{name}{unique_hash}"]
     
     @staticmethod
-    def obj_to_fno(g: ExecutableGraph, imp, imp_name=None, self=None, static=None):
+    def obj_to_fno(g: FnOGraph, imp, imp_name=None, self=None, static=None):
         """
         Convert a Python function implementation to RDF.
 
@@ -129,7 +129,7 @@ class PythonMapper:
     ### MAPPINGS ###
     
     @staticmethod
-    def map_with_parse_args(g: ExecutableGraph, fun, imp, output, args):
+    def map_with_parse_args(g: FnOGraph, fun, imp, output, args):
         context = get_name(fun)
         
         positional = []
@@ -167,7 +167,7 @@ class PythonMapper:
         return uri
     
     @staticmethod
-    def map_with_sig(g: ExecutableGraph, f, s, imp, f_name, output, self_output): 
+    def map_with_sig(g: FnOGraph, f, s, imp, f_name, output, self_output): 
         sig = inspect.signature(f)
         params = sig.parameters
 
@@ -199,7 +199,7 @@ class PythonMapper:
         FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional, keyword, args, kargs, self_output, defaults)
         
     @staticmethod
-    def map_with_num(g: ExecutableGraph, s, keywords, imp, f_name, output, self_output):
+    def map_with_num(g: FnOGraph, s, keywords, imp, f_name, output, self_output):
         """
         Maps function parameters and outputs to RDF representations based on the number of parameters and keywords.
 
@@ -235,7 +235,7 @@ class PythonMapper:
         FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional=positional, keyword=keyword, self_output=self_output)
     
     @staticmethod
-    def fno_to_obj(g: ExecutableGraph, s):
+    def fno_to_obj(g: FnOGraph, s):
         """
         Convert RDF representing a function implementation to a Python function or method.
 
@@ -294,7 +294,7 @@ class PythonMapper:
         return Any
     
     @staticmethod
-    def value_to_rdf(g: ExecutableGraph, inst):
+    def value_to_rdf(g: FnOGraph, inst):
         """
         Convert a Python literal or instance to RDF.
 
@@ -315,7 +315,7 @@ class PythonMapper:
         return Literal(inst, datatype=inst_type)
     
     @staticmethod
-    def any(g: ExecutableGraph) -> URIRef:
+    def any(g: FnOGraph) -> URIRef:
         """
         Get the RDF representation of the 'Any' type.
 

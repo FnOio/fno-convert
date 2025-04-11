@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QScrollArea, QTextEdit, QVBox
                              QLabel, QFrame)
 from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat
 from ..mappers import PythonMapper
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..util.python.ast import ASTUtil
 from ..descriptors import PythonDescriptor, DockerfileDescriptor
 from rdflib import URIRef
@@ -14,7 +14,7 @@ import os, sys, ast, inspect, time
 class Descripter(QWidget):
 
     file_loaded = pyqtSignal(str) # signal that a file is loaded
-    resource_described = pyqtSignal(ExecutableGraph, URIRef, URIRef, URIRef, str) # signal that a resource has been described
+    resource_described = pyqtSignal(FnOGraph, URIRef, URIRef, URIRef, str) # signal that a resource has been described
     # function_loaded = pyqtSignal(ExecutableGraph, URIRef, list, URIRef) # signal that a new function is loaded
     
     def __init__(self) -> None:
@@ -78,7 +78,7 @@ class Descripter(QWidget):
                     source = file.read()
                     self.file_loaded.emit(source)
                 
-                g = ExecutableGraph()
+                g = FnOGraph()
                 fun_uri, map_uris, imp_uri = PythonDescriptor(g).describe_file(self.file_path)
                 self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "python")
             
@@ -86,7 +86,7 @@ class Descripter(QWidget):
                 with open(self.file_path, "r") as file:
                     source = file.read()
                     self.file_loaded.emit(source)
-                g = ExecutableGraph()
+                g = FnOGraph()
                 fun_uri, map_uris, imp_uri = DockerfileDescriptor(g).describe_file(self.file_path)
                 self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "dockerfile")
             
@@ -94,7 +94,7 @@ class Descripter(QWidget):
                 with open(self.file_path, "r") as file:
                     source = file.read()
                     self.file_loaded.emit(source)
-                self.graph = ExecutableGraph()
+                self.graph = FnOGraph()
                 self.graph.parse(self.file_path)
                     
                 for fun in self.graph.functions():
@@ -167,7 +167,7 @@ class Descripter(QWidget):
             selected_function = locals().get(function_name)
             if selected_function and callable(selected_function):
                 start = time.time()
-                graph = ExecutableGraph()
+                graph = FnOGraph()
                 uri = PythonDescriptor(graph).describe_resource(selected_function)
                 stop = time.time()
                 print(f"gen time: {(stop-start)*1000}")
@@ -230,10 +230,10 @@ class ScrollWidget(QWidget):
     def setText(self, text: str):
         self.text.setPlainText(text)
 
-    def setGraph(self, g: ExecutableGraph):
+    def setGraph(self, g: FnOGraph):
         self.text.setPlainText(g.serialize(format='turtle'))
     
-    def setSource(self, g: ExecutableGraph, fun_uri: URIRef):
+    def setSource(self, g: FnOGraph, fun_uri: URIRef):
         # TODO What if there are multiple imps?
         _, imp_uri = g.fun_to_imp(fun_uri)[0]
         if imp_uri is not None:

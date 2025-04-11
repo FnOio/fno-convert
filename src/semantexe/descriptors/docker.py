@@ -4,7 +4,7 @@ from rdflib import URIRef
 import ast, os
 
 from ..prefix import Prefix
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from ..builders import FnOBuilder, DockerBuilder, ProvBuilder
 from ..descriptors.file import AbstractFileDescriptor
 from ..descriptors.python import PythonDescriptor
@@ -19,7 +19,7 @@ OUTPUT_IMAGE = Prefix.do()["imageOutputParam"]
 
 class DockerfileDescriptor(AbstractFileDescriptor):
     
-    def __init__(self, g: ExecutableGraph) -> None:
+    def __init__(self, g: FnOGraph) -> None:
         self.parser = DockerfileParser()
         self.g = g
     

@@ -1,4 +1,4 @@
-from .std import Executor
+from .std import Executer
 
-class CommandExecutor(Executor):
+class CommandExecutor(Executer):
   pass

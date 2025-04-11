@@ -10,7 +10,7 @@ import numpy as np
 
 from ..executors.store import Mapping
 from ..executors.executeable import Composition, Function
-from ..graph import ExecutableGraph
+from ..graph import FnOGraph
 from .function import FunctionGraphicsItem
 from .store import StoreGraphicsItem
 from .mapping import DataMappingGraphicsItem, ControlMappingGraphicsItem
