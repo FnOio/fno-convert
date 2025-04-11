@@ -9,9 +9,9 @@ class StandardKG:
     """
     def __init__(self):
         self.g = FnOGraph()
-        self.g += Graph().parse(files("semantexe.functions").joinpath("control_flow.ttl"), format='turtle')
-        self.g += Graph().parse(files("semantexe.functions").joinpath("python.ttl"), format='turtle')
-        self.g += Graph().parse(files("semantexe.functions").joinpath("dockeronto.ttl"), format='turtle')
+        self.g += Graph().parse(files("fno_convert.functions").joinpath("control_flow.ttl"), format='turtle')
+        self.g += Graph().parse(files("fno_convert.functions").joinpath("python.ttl"), format='turtle')
+        self.g += Graph().parse(files("fno_convert.functions").joinpath("dockeronto.ttl"), format='turtle')
     
     def __contains__(self, uri):
         return self.g.has_function(uri)
