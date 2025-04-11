@@ -1,3 +1,3 @@
-include src/semantexe/functions/*.ttl
-include src/semantexe/js/package.json
-include src/semantexe/js/process_data.js
+include src/fno_convert/functions/*.ttl
+include src/fno_convert/js/package.json
+include src/fno_convert/js/process_data.js

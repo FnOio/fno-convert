@@ -1,9 +1,9 @@
 import traceback
 
-from semantexe.descriptors import ResourceDescriptor
-from semantexe.graph import FnOGraph
-from semantexe.executors.python import PythonExecutor
-from semantexe.executors.executeable import Function
+from fno_convert.descriptors import ResourceDescriptor
+from fno_convert.graph import FnOGraph
+from fno_convert.executors.python import PythonExecutor
+from fno_convert.executors.executeable import Function
 
 from docker_examples.diagnose.train import train
 

@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication
-from semantexe.visualize import PY2RDFWindow  # Update with actual module path
+from fno_convert.visualize import PY2RDFWindow
 
 def main():
     app = QApplication(sys.argv)  # Create the application instance

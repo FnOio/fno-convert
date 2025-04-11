@@ -8,7 +8,7 @@ class ElkInstallCommand(install):
     def run(self):
         install.run(self)
         
-        js_dir = os.path.join(os.path.dirname(__file__), "semantexe", "elk")
+        js_dir = os.path.join(os.path.dirname(__file__), "fno_convert", "elk")
         
         try:
             subprocess.check_call(["npm", "install"], cwd=js_dir)
@@ -17,7 +17,7 @@ class ElkInstallCommand(install):
             print("⚠️ Failed to install Node.js dependencies:", e)
 
 setup(
-    name='semantexe',
+    name='fno-convert',
     version='0.1',
     packages=find_packages(where='src'),
     cmdclass={
@@ -26,7 +26,7 @@ setup(
     package_dir={'': 'src'},
     include_package_data=True,
     package_data={
-        'semantexe/functions': ['*.ttl'],
-        'semantexe': ["elk/package.json", "elk/elk_layout.js"]
+        'fno_convert/functions': ['*.ttl'],
+        'fno_convert': ["elk/package.json", "elk/elk_layout.js"]
     },
 )

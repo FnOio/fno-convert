@@ -1,11 +1,11 @@
 import traceback
 import json
 
-from semantexe.descriptors import ResourceDescriptor
-from semantexe.graph import FnOGraph
-from semantexe.executors.docker import DockerfileExecutor
-from semantexe.executors.executeable import Function
-from semantexe.elk import elk_layout
+from fno_convert.descriptors import ResourceDescriptor
+from fno_convert.graph import FnOGraph
+from fno_convert.executors.docker import DockerfileExecutor
+from fno_convert.executors.executeable import Function
+from fno_convert.elk import elk_layout
 
 DD_DOCKERFILE = "docker_examples/data-driven/Dockerfile"
 DD_PY_FILE = "docker_examples/data-driven/job/run.py"
