@@ -4,12 +4,6 @@ A tool to automatically semantically annotate pipelines written in Dockerfiles a
 
 ## Installation
 
-### Quick Use
-
-```
-pip install .
-```
-
 ### Development
 
 1. create virtual environment
@@ -18,6 +12,15 @@ python -m venv <path to env folder>
 ```
 
 2. activate environment
+Linux
+```bash
+source <path to env folder>/bin/activate
+```
+
+Windows
+```bash
+./<path to env folder>/bin/activate.sh
+```
 
 3. install requirements
 ```python
