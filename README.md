@@ -12,12 +12,12 @@ python -m venv <path to env folder>
 ```
 
 2. activate environment
-Linux
+##### Linux
 ```bash
 source <path to env folder>/bin/activate
 ```
 
-Windows
+##### Windows
 ```bash
 ./<path to env folder>/bin/activate.sh
 ```
