@@ -22,6 +22,7 @@ src/fno_convert/descriptors/python.py
 src/fno_convert/descriptors/resource.py
 src/fno_convert/elk/__init__.py
 src/fno_convert/elk/elk_layout.js
+src/fno_convert/elk/package-lock.json
 src/fno_convert/elk/package.json
 src/fno_convert/executors/__init__.py
 src/fno_convert/executors/command.py
@@ -33,6 +34,7 @@ src/fno_convert/executors/docker/__init__.py
 src/fno_convert/executors/docker/dockercontainer.py
 src/fno_convert/executors/docker/dockerfile.py
 src/fno_convert/executors/docker/dockerimage.py
+src/fno_convert/functions/__init__.py
 src/fno_convert/functions/control_flow.ttl
 src/fno_convert/functions/dockeronto.ttl
 src/fno_convert/functions/python.ttl

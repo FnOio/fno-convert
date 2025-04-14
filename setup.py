@@ -8,7 +8,7 @@ class ElkInstallCommand(install):
     def run(self):
         install.run(self)
         
-        js_dir = os.path.join(os.path.dirname(__file__), "fno_convert", "elk")
+        js_dir = os.path.join(os.path.dirname(__file__), "src", "fno_convert", "elk")
         
         try:
             subprocess.check_call(["npm", "install"], cwd=js_dir)
