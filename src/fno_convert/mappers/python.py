@@ -1,7 +1,7 @@
 import inspect, importlib, importlib.util, sys, hashlib, os
 
 from typing import Any
-from types import NoneType, FunctionType
+from types import NoneType, ModuleType
 from rdflib import Literal, URIRef, BNode, RDF
 from rdflib.term import _toPythonMapping
 from datetime import datetime, date, time
@@ -12,6 +12,7 @@ from ..builders import PythonBuilder, FnOBuilder
 from ..graph import FnOGraph, get_name
 
 _toPythonMapping[Prefix.ns('xsd').string] = str
+_toPythonMapping[Prefix.ns('xsd').boolean] = bool
 
 def load_function_from_source(file_path, function_name):
     """
@@ -91,6 +92,10 @@ class PythonMapper:
         ### IMPLEMENTATION METADATA ###
         
         # Module & package
+        if isinstance(imp, ModuleType):
+            m_name = Literal(imp.__name__)
+            if hasattr(imp, '__package__'):
+                p_name = Literal(imp.__package__)
         if hasattr(imp, "__module__"):
             m_name = Literal(imp.__module__)
             if '.' in imp.__module__:
@@ -119,6 +124,8 @@ class PythonMapper:
 
         if inspect.isclass(imp) or imp is Any:
             PythonBuilder.describe_class(g, imp_uri)
+        if isinstance(imp, ModuleType):
+            PythonBuilder.describe_module(g, imp_uri)
         elif self is not None:
             PythonBuilder.describe_method(g, imp_uri, self, static)
         else:
@@ -194,7 +201,7 @@ class PythonMapper:
                 kargs.add(par)
             
             if param.default is not inspect._empty:
-                defaults[par] = PythonMapper.value_to_rdf(g, param.default)
+                defaults[par] = PythonMapper.value_to_term(g, param.default)
 
         FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional, keyword, args, kargs, self_output, defaults)
         
@@ -241,7 +248,7 @@ class PythonMapper:
 
         Args:
             g (Graph): The RDF graph containing the implementation.
-            s (str): The URI of the implementation.
+            s (str | URIRef): The URI of the implementation.
 
         Returns:
             function: The Python function or method.
@@ -249,7 +256,7 @@ class PythonMapper:
         if s is None:
             return Any
         
-        if s.split('#')[-1] == 'NoneType':
+        if s.split('#')[-1].startswith('NoneType'):
             return NoneType
         
         if s in _toPythonMapping:
@@ -263,9 +270,9 @@ class PythonMapper:
              x['self_class'])
             for x in g.query(f'''
             SELECT ?type ?label ?module ?package ?file ?self_class WHERE {{
-                VALUES ?type {{ fnoi:PythonClass fnoi:PythonFunction fnoi:PythonMethod }}
+                VALUES ?type {{ fnoi:PythonClass fnoi:PythonFunction fnoi:PythonMethod fnoi:PythonModule }}
                 <{s}> a ?type ;
-                      rdfs:label ?label ;
+                      doap:name ?label ;
                 OPTIONAL {{ <{s}> fnoi:module ?module . }}
                 OPTIONAL {{ <{s}> fnoi:package ?package . }}
                 OPTIONAL {{ <{s}> fnoi:file ?file . }}
@@ -275,6 +282,10 @@ class PythonMapper:
         try:
             if result:
                 label, module, package, file, self_class = result[0]
+                
+                if g.is_pythonmodule(s):
+                    return importlib.import_module(module, package)
+                
                 if file is not None:
                     return load_function_from_source(file, label)
                 if module is not None:
@@ -294,7 +305,7 @@ class PythonMapper:
         return Any
     
     @staticmethod
-    def value_to_rdf(g: FnOGraph, inst):
+    def value_to_term(g: FnOGraph, inst):
         """
         Convert a Python literal or instance to RDF.
 
@@ -304,15 +315,29 @@ class PythonMapper:
         Returns:
             tuple: A tuple containing the RDF literal and the type description graph.
         """
+        
         if isinstance(inst, URIRef):
             return inst
+        if inst is None:
+            return Literal(None)
         if type(inst) in _toPythonMapping.values():
             return Literal(inst)
-        if type(inst) is type or isinstance(inst, FunctionType):
-            inst_type = PythonMapper.obj_to_fno(g, inst)
-        else:
+        
+        try:
+            return PythonMapper.obj_to_fno(g, inst)
+        except:
             inst_type = PythonMapper.obj_to_fno(g, type(inst))
+        
         return Literal(inst, datatype=inst_type)
+
+    def term_to_value(g: FnOGraph, term: Literal | URIRef):
+        if isinstance(term, URIRef):
+            if g.is_implementation(term):
+                return PythonMapper.fno_to_obj(g, term)
+            return term
+        if term.datatype is None and term.value == 'None':
+            return None
+        return term.value
     
     @staticmethod
     def any(g: FnOGraph) -> URIRef:

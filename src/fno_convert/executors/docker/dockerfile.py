@@ -57,6 +57,9 @@ class DockerfileExecutor(Executer):
             Prefix.do().maintainer: self.no_execution,
             Prefix.do()['from']: self.no_execution,
         }
+        
+    def uri(self):
+        return Prefix.ns('fnoi').DockerfileExecutor    
     
     def accepts(self, mapping, imp):
         return self.g.is_dockerfile(imp)
@@ -92,12 +95,12 @@ class DockerfileExecutor(Executer):
         self.entrypoint_cmd = None
         self.entrypoint_params = []
         
-        # Build the image
-        docker_build(self.dir, tag)
-        
-        # Start docker client to inspect image
+        # Start docker client
         client = docker.client.from_env()
-        image = client.images.get(tag)
+        
+        # Build the image
+        # docker_build(self.dir, tag)
+        image, _ = client.images.build(path=self.dir, tag=tag, rm=True)
     
         # describe the image
         self.imp_uri, image_tag = DockerMapper.map_image(self.pg, image)
@@ -119,11 +122,17 @@ class DockerfileExecutor(Executer):
             try:
                 # Now just take the first implementation
                 file = os.path.join(self.workdir, self.entrypoint_params[0])
-                imp_uri, map_uri, fun_uri = self.pg.imp_from_file(file)[0]
+                
+                imps = self.pg.imp_from_file(file)
+                for imp_uri, map_uri, fun_uri in imps:
+                    ProvBuilder.specialiazitionOf(self.pg, self.imp_uri, imp_uri)
+            
+                # Now just take the first implementation
+                imp_uri, map_uri, fun_uri = imps[0]
                 
                 # Describe the image function
                 rep = Function(self.pg, fun_uri, map_uri, imp_uri)
-                ProvBuilder.alternateOf(self.pg, self.imp_uri, rep.imp)
+                
                 
                 mappings = []
                 
@@ -229,6 +238,7 @@ class DockerfileExecutor(Executer):
                     imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
                     if imp_copy:
                         # Provenance
+                        fun.prov.generated.append(imp_copy)
                         ProvBuilder.alternateOf(self.pg, imp_copy, imp)
                         DockerBuilder.includes(self.pg, self.imp_uri, imp_copy)
 
@@ -256,7 +266,8 @@ class DockerfileExecutor(Executer):
         from ..python import PythonExecutor
         executor = PythonExecutor(self.pg)
         
-        _, exe_uri = executor.provenance(fun, logger=self.logger)
+        pg, exe_uri = executor.provenance(fun, logger=self.logger)
+        self.pg += pg
 
         fun.prov.informed.append(exe_uri)
 

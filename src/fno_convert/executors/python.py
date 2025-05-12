@@ -8,6 +8,7 @@ from ..util.python.script import CallableScript
 import importlib
 import importlib.util
 import sys
+import os
 
 from urllib.parse import urlparse
 from datetime import datetime
@@ -100,10 +101,15 @@ class PythonExecutor(Executer):
         
         value[key] = assign
         
-        fun.output.set(value)     
+        fun.output.set(value)
+    
+    def uri(self):
+        return Prefix.ns('fnoi').PythonExecutor    
  
     def accepts(self, mapping, imp):
-        # TODO is the mapping OK based on the scope?
+        file = self.g.get_file(imp)
+        if file:
+            return os.path.exists(file) and self.g.is_python(imp)
         return self.g.is_python(imp)
     
     def map(self, fun: Function):
@@ -131,63 +137,69 @@ class PythonExecutor(Executer):
         
         # If internal provenance is captured, you do not need to execute the function
         if fun.internal:
-            fun.comp.execute(self)
-        else:            
-            # If there is a fun input, use the function object from that terminal's uri value
-            if fun.self_input is not None:
-                fun.f_object = getattr(fun.self_input.value, fun.name, None)
+            try:
+                fun.comp.execute(self)
+                fun.imp = None
+                return
+            except:
+                # An error occured when trying to execute the composition, try to execute the implementation
+                pass
+                  
+        # If there is a fun input, use the function object from that terminal's uri value
+        if fun.self_input is not None:
+            fun.f_object = getattr(fun.self_input.value, fun.name, None)
+        
+        # Only execute when there is a function object
+        if fun.f_object is not None:
+            args = []
+            vargs = []
+            keyargs = {}
+            vkeyargs = {}
+
+            for param in fun.inputs():
+                mapping = param.param_mapping
+                if not param.value_set:
+                    if mapping.has_default:
+                        param.set(mapping.default)
+                value = param.get()                    
+
+                if mapping.get_type() == MappingType.VARPOSITIONAL:
+                    vargs = value
+                elif mapping.get_type() == MappingType.VARKEYWORD:
+                    if isinstance(value, dict):
+                        vkeyargs = value
+                elif mapping.get_type() == MappingType.KEYWORD:
+                    keyargs[mapping.get_property()] = value
+                elif mapping.get_type() == MappingType.POSITIONAL:
+                    args.append((mapping.get_property(), value))
             
-            # Only execute when there is a function object
-            if fun.f_object is not None:
-                args = []
-                vargs = []
-                keyargs = {}
-                vkeyargs = {}
+            # correctly sort the positional arguments
+            args = [ x[1] for x in sorted(args, key=lambda x: x[0])]
 
-                for param in fun.inputs():
-                    mapping = param.param_mapping
-                    if not param.value_set:
-                        if mapping.has_default:
-                            param.set(mapping.default)
-                    value = param.get()                    
-
-                    if mapping.get_type() == MappingType.VARPOSITIONAL:
-                        vargs = value
-                    elif mapping.get_type() == MappingType.VARKEYWORD:
-                        if isinstance(value, dict):
-                            vkeyargs = value
-                    elif mapping.get_type() == MappingType.KEYWORD:
-                        keyargs[mapping.get_property()] = value
-                    elif mapping.get_type() == MappingType.POSITIONAL:
-                        args.append((mapping.get_property(), value))
+            # Remove the fun parameter as we already have the method object
+            if fun.self_input is not None:
+                if 'fun' in keyargs:
+                    del keyargs['fun']
+                else:
+                    args = args[1:]
+            
+            try:
+                fun.prov.startedAt = datetime.now()
+                ret = fun.f_object(*args, *vargs, **keyargs, **vkeyargs)
+                fun.prov.endedAt = datetime.now()
                 
-                # correctly sort the positional arguments
-                args = [ x[1] for x in sorted(args, key=lambda x: x[0])]
-
-                # Remove the fun parameter as we already have the method object
-                if fun.self_input is not None:
-                    if 'fun' in keyargs:
-                        del keyargs['fun']
-                    else:
-                        args = args[1:]
-                
-                try:
-                    fun.prov.startedAt = datetime.now()
-                    ret = fun.f_object(*args, *vargs, **keyargs, **vkeyargs)
-                    fun.prov.endedAt = datetime.now()
-                    
-                    fun.output.set(ret)
-                    if fun.self_output is not None:
-                        fun.self_output.set(fun.self_input.get())
-                except StopIteration as e:
-                    fun.stop_iteration = True
-                except Exception as e:
-                    print(f"Error while executing {fun.name} with")
-                    print(f"\targs: {args}")
-                    print(f"\tvargs: {vargs}")
-                    print(f"\tkeyargs: {",".join([f"{key}={arg}" for key, arg in keyargs.items()])}")
-                    print(f"\tvkeyargs: {",".join([f"{key}={arg}" for key, arg in vkeyargs.items()])}")
-                    raise e        
+                fun.output.set(ret)
+                if fun.self_output is not None:
+                    fun.self_output.set(fun.self_input.get())
+            except StopIteration as e:
+                fun.stop_iteration = True
+            except Exception as e:
+                print(f"Error while executing {fun.name} with")
+                print(f"\targs: {args}")
+                print(f"\tvargs: {vargs}")
+                print(f"\tkeyargs: {",".join([f"{key}={arg}" for key, arg in keyargs.items()])}")
+                print(f"\tvkeyargs: {",".join([f"{key}={arg}" for key, arg in vkeyargs.items()])}")
+                raise e        
     
     def alt_executor(self, fun: Function):
         raise Exception("No alternative executors")

@@ -3,6 +3,7 @@ from rdflib.container import Container
 from .prefix import Prefix
 from pyparsing.exceptions import ParseException
 from typing import Any
+from datetime import datetime
 
 def create_rdf_list(g, elements):
     return Container(g, BNode(), seq=elements, rtype="Seq")
@@ -725,89 +726,8 @@ class FnOGraph(Graph):
         elif len(result) == 1:
             return result[0]
         return None, None
-    
-    ### IMPLEMENTATION ###
-     
-    def fun_to_imp(self, fun):
-        """
-        Retrieve all possible implementations of a function.
-
-        Args:
-            f (str): The URI of the function.
-
-        Returns:
-            Tuple[]: A list of tuples where each tuple contains the URI of a mapping and a corresponding implementation URI.
-        """
-        fun = self.check_call(fun)
-
-        result = [
-            (x['mapping'], x['imp'])
-            for x in self.query(f'''
-                    SELECT ?mapping ?imp WHERE {{
-                        ?mapping fno:function <{fun}> ;
-                                fno:implementation ?imp .
-                    }}
-            ''', initNs=Prefix.NAMESPACES) 
-        ]
-        return result
-    
-    def imp_to_fun(self, imp):
-        """
-        Retrieve a list of FnO Mappings with the representative FnO Function for a given implementation. 
-        Return None if no mapping can be found for this implementation.
-        """
-        result = [
-            (x['mapping'], x['fun']) for x in self.query(f'''
-                                            SELECT ?mapping ?fun WHERE {{
-                                                ?mapping fno:function ?fun ;
-                                                         fno:implementation <{imp}> .
-                                            }}''', initNs=Prefix.NAMESPACES)
-        ]
-        return result
-    
-    def mappings(self, fun, imp):
-        """
-        Retrieve a list of FnO Mappings for a given FnO Function and implementation pair. 
-        Return None if no mapping can be found for this pair.
-        """
-        result = [
-            x['mapping'] for x in self.query(f'''
-                SELECT ?mapping WHERE {{
-                    ?mapping fno:function <{fun}> ;
-                                fno:implementation <{imp}> .
-                }}''', initNs=Prefix.NAMESPACES)
-        ]
-        return result
-    
-    def imp_from_file(self, file):
-        result = [
-            (x['imp'], x['mapping'], x['fun']) for x in self.query(f'''
-                SELECT ?imp ?mapping ?fun WHERE {{
-                    ?imp a fnoi:PythonFile ;
-                        fnoi:file <file://{file}> . 
-                    ?mapping fno:implementation ?imp ;
-                        fno:function ?fun .
-                }}''', initNs=Prefix.NAMESPACES)
-        ]
-        return result
-    
-    def get_imp_metadata(self, imp):
-        result = {}
-        
-        for pred, obj in self.predicate_objects(subject=imp):
-            if pred not in result:
-                result[pred] = []
-            result[pred].append(obj)
-        
-        return result
-     
-    def represents_python(self, comp):
-          """
-          Check if a given composition represents a python implementation.
-          """
-          return self.query(f'''ASK WHERE {{ 
-                <{comp}> fnoc:represnts ?file .
-                ?file a fnoi:PythonFile . }}''')
+          
+    ### PARAMETER MAPPING ###
     
     def get_mapping(self, f, first=False):
         f = self.check_call(f)
@@ -1012,7 +932,7 @@ class FnOGraph(Graph):
     def get_default_mapping(self, mapping, param):
         try:
             result = [
-                x['default'].value if x['default'] is not None else None
+                x['default'] if x['default'] is not None else None
                 for x in self.query(f'''
                     SELECT ?default WHERE {{
                         <{mapping}> fno:parameterMapping ?defmapping .
@@ -1246,17 +1166,120 @@ class FnOGraph(Graph):
           desc = Prefix.bind_namespaces(FnOGraph())
           [ desc.add(x) for x in triples ]
           return desc
+    
+        ### IMPLEMENTATION ###
+     
+    def fun_to_imp(self, fun):
+        """
+        Retrieve all possible implementations of a function.
+
+        Args:
+            f (str): The URI of the function.
+
+        Returns:
+            Tuple[]: A list of tuples where each tuple contains the URI of a mapping and a corresponding implementation URI.
+        """
+        fun = self.check_call(fun)
+
+        result = [
+            (x['mapping'], x['imp'])
+            for x in self.query(f'''
+                    SELECT ?mapping ?imp WHERE {{
+                        ?mapping fno:function <{fun}> ;
+                                fno:implementation ?imp .
+                    }}
+            ''', initNs=Prefix.NAMESPACES) 
+        ]
+        return result
+    
+    def imp_to_fun(self, imp):
+        """
+        Retrieve a list of FnO Mappings with the representative FnO Function for a given implementation. 
+        Return None if no mapping can be found for this implementation.
+        """
+        result = [
+            (x['mapping'], x['fun']) for x in self.query(f'''
+                                            SELECT ?mapping ?fun WHERE {{
+                                                ?mapping fno:function ?fun ;
+                                                         fno:implementation <{imp}> .
+                                            }}''', initNs=Prefix.NAMESPACES)
+        ]
+        return result
+    
+    def mappings(self, fun, imp):
+        """
+        Retrieve a list of FnO Mappings for a given FnO Function and implementation pair. 
+        Return None if no mapping can be found for this pair.
+        """
+        result = [
+            x['mapping'] for x in self.query(f'''
+                SELECT ?mapping WHERE {{
+                    ?mapping fno:function <{fun}> ;
+                                fno:implementation <{imp}> .
+                }}''', initNs=Prefix.NAMESPACES)
+        ]
+        return result
+    
+    def imp_from_file(self, file):
+        result = [
+            (x['imp'], x['mapping'], x['fun']) for x in self.query(f'''
+                SELECT ?imp ?mapping ?fun WHERE {{
+                    ?imp a fnoi:PythonFile ;
+                        fnoi:file <file://{file}> . 
+                    ?mapping fno:implementation ?imp ;
+                        fno:function ?fun .
+                }}''', initNs=Prefix.NAMESPACES)
+        ]
+        return result
+    
+    def get_imp_metadata(self, imp):
+        result = {}
+        
+        for pred, obj in self.predicate_objects(subject=imp):
+            if pred not in result:
+                result[pred] = []
+            result[pred].append(obj)
+        
+        return result
+     
+    def represents_python(self, comp):
+          """
+          Check if a given composition represents a python implementation.
+          """
+          return self.query(f'''ASK WHERE {{ 
+                <{comp}> fnoc:represnts ?file .
+                ?file a fnoi:PythonFile . }}''')
+          
+    def get_file(self, uri: URIRef):
+        result = [ x['path'].removeprefix("file://") for x in self.query(f"""
+                                         SELECT ?path WHERE {{
+                                            <{uri}> fnoi:file ?path .
+                                        }}""", initNs=Prefix.NAMESPACES)]
+        
+        if len(result) > 1:
+            raise Exception(f"Implementation {uri} has more than one path defined: {result}")
+        return result[0] if result else None
+    
+    def is_implementation(self, uri: URIRef):
+        return self.is_python(uri) or self.is_docker(uri)
       
     ### PYTHON ###
     
     def is_python(self, uri: URIRef):
-        return self.is_pythonfunction(uri) or self.is_pythonclass(uri) or self.is_pythonfile(uri) or self.is_pythonmethod(uri)
+        return self.is_pythonfunction(uri) \
+            or self.is_pythonclass(uri) \
+            or self.is_pythonfile(uri) \
+            or self.is_pythonmethod(uri) \
+            or self.is_pythonmodule(uri)
         
     def is_pythonfunction(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonFunction . }}""", initNs=Prefix.NAMESPACES)
     
     def is_pythonclass(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonClass . }}""", initNs=Prefix.NAMESPACES)
+    
+    def is_pythonmodule(self, uri: URIRef):
+        return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonModule . }}""", initNs=Prefix.NAMESPACES)
         
     def is_pythonfile(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonFile . }}""", initNs=Prefix.NAMESPACES)
@@ -1265,6 +1288,9 @@ class FnOGraph(Graph):
         return self.query(f"""ASK WHERE {{ <{uri}> a fnoi:PythonMethod . }}""", initNs=Prefix.NAMESPACES)
     
     ### DOCKER ###
+    
+    def is_docker(self, uri: URIRef):
+        return self.is_dockerfile(uri) or self.is_dockerimage(uri) or self.is_dockercontainer(uri)
     
     def is_dockerfile(self, uri: URIRef):
         return self.query(f"""ASK WHERE {{ <{uri}> a do:Dockerfile . }}""", initNs=Prefix.NAMESPACES)
@@ -1308,14 +1334,124 @@ class FnOGraph(Graph):
         
         return results[0] if len(results) == 1 else None
     
-    ### IMPLEMENTATION ###
+    ### PROVENANCE ###
     
-    def get_file(self, uri: URIRef):
-        result = [ x['path'].removeprefix("file://") for x in self.query(f"""
-                                         SELECT ?path WHERE {{
-                                            <{uri}> fnoi:file ?path .
-                                        }}""", initNs=Prefix.NAMESPACES)]
+    def derived_from(self, uri: URIRef):
         
-        if len(result) > 1:
-            raise Exception(f"Implementation {uri} has more than one path defined: {result}")
-        return result[0] if result else None
+        result = [ x['d'] for x in self.query(
+            f"""SELECT ?d WHERE {{
+                <{uri}> prov:wasDerivedFrom ?d .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        return result
+    
+    def alternatives(self, uri: URIRef):
+        
+        result = [ x['d'] for x in self.query(
+            f"""SELECT ?d WHERE {{
+                <{uri}> prov:alternateOf ?d .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        result.extend([ x['d'] for x in self.query(
+            f"""SELECT ?d WHERE {{
+                ?d prov:alternateOf <{uri}> .
+            }}""", 
+            initNs=Prefix.NAMESPACES)])
+        
+        return result
+    
+    def specializationOf(self, uri: URIRef):
+        result = [ x['d'] for x in self.query(
+            f"""SELECT ?d WHERE {{
+                <{uri}> prov:specializationOf ?d .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        return result
+
+    def generated(self, uri: URIRef):
+        result = [ x['e'] for x in self.query(
+            f"""SELECT ?e WHERE {{
+                ?e prov:wasGeneratedBy <{uri}> .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        return result
+    
+    def get_executions(self, uri: URIRef):
+        
+        result = [ x['e'] for x in self.query(
+            f"""SELECT ?e WHERE {{
+                ?e a fno:Execution ;
+                    fno:executes <{uri}> .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        return result
+
+    def get_value(self, uri: URIRef):
+        
+        result = [ x['v'] for x in self.query(
+            f"""SELECT ?v WHERE {{
+                <{uri}> rdf:value ?v .
+            }}""", 
+            initNs=Prefix.NAMESPACES)]
+        
+        return result
+    
+    def get_agent(self, uri: URIRef):
+        agents = []
+
+        # Get directly associated agents
+        assoc_query = self.query(f"""
+            SELECT ?agent ?qualifiedAssoc ?plan ?role WHERE {{
+                <{uri}> prov:wasAssociatedWith ?agent .
+                OPTIONAL {{
+                    <{uri}> prov:qualifiedAssociation ?qualifiedAssoc .
+                    ?qualifiedAssoc prov:agent ?agent .
+                    OPTIONAL {{ ?qualifiedAssoc prov:hadPlan ?plan . }}
+                    OPTIONAL {{ ?qualifiedAssoc prov:hadRole ?role . }}
+                }}
+            }}
+        """, initNs=Prefix.NAMESPACES)
+
+        for row in assoc_query:
+            agent_info = {
+                'agent': row['agent'],
+                'plan': row.get('plan'),
+                'role': row.get('role'),
+            }
+            agents.append(agent_info)
+
+        return agents
+    
+    def get_execution_time(self, uri: URIRef):
+        result = {
+            'startedAtTime': None,
+            'endedAtTime': None,
+            'duration_ms': None,
+        }
+
+        time_query = self.query(f"""
+            SELECT ?start ?end WHERE {{
+                OPTIONAL {{ <{uri}> prov:startedAtTime ?start . }}
+                OPTIONAL {{ <{uri}> prov:endedAtTime ?end . }}
+            }}
+        """, initNs=Prefix.NAMESPACES)
+
+        for row in time_query:
+            start_literal = row.get('start')
+            end_literal = row.get('end')
+
+            if start_literal:
+                result['startedAtTime'] = datetime.fromisoformat(str(start_literal))
+            if end_literal:
+                result['endedAtTime'] = datetime.fromisoformat(str(end_literal))
+
+            if result['startedAtTime'] and result['endedAtTime']:
+                delta = result['endedAtTime'] - result['startedAtTime']
+                result['duration_ms'] = int(delta.total_seconds() * 1000)
+
+        return result

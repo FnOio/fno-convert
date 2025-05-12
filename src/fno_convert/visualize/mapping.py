@@ -5,7 +5,7 @@ from PyQt6.QtGui import QPainterPath, QPainterPathStroker
 from PyQt6.QtWidgets import QGraphicsTextItem
 from PyQt6.QtCore import Qt
 
-from .store import TerminalGraphicsItem
+from .store import StoreGraphicsItem
 
 STD_COLOR = (100, 100, 250)
 LINK_COLOR = (250, 50, 50)
@@ -166,7 +166,7 @@ class ControlMappingGraphicsItem(MappingGraphicsItem):
 
 class DataMappingGraphicsItem(MappingGraphicsItem):
     
-    def __init__(self, source: TerminalGraphicsItem, target: TerminalGraphicsItem):
+    def __init__(self, source: StoreGraphicsItem, target: StoreGraphicsItem):
         super().__init__()
         
         color = STD_COLOR

@@ -1,9 +1,13 @@
 from ..std import Executer
 from ..executeable import Function
+from ...prefix import Prefix
 
 import docker
 
 class DockerContainerExecuter(Executer):
+  
+  def uri(self):
+        return Prefix.ns('fnoi').DockerContainerExecutor    
   
   def accepts(self, mapping, imp):
     return self.g.is_dockercontainer(imp)

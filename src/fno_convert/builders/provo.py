@@ -22,7 +22,11 @@ class ProvBuilder:
         
     @staticmethod
     def derivedFrom(g, der, src):
-        g.add((der, Prefix.prov().derivedFrom, src))
+        g.add((der, Prefix.prov().wasDerivedFrom, src))
+        
+    @staticmethod
+    def specialiazitionOf(g, spec, src):
+        g.add((spec, Prefix.prov().specializationOf, src))
     
     @staticmethod
     def used(g, act, ent):
@@ -65,22 +69,37 @@ class ProvBuilder:
         
         # Function execution
         triples = [
-            (exe, Prefix.prov().startedAt, Literal(startedAt)),
-            (exe, Prefix.prov().endedAt, Literal(endendAt)),
+            (exe, Prefix.prov().startedAtTime, Literal(startedAt)),
+            (exe, Prefix.prov().endedAtTime, Literal(endendAt)),
             (exe, Prefix.prov().used, fun)
         ]
         
         # Associate implementation
         if imp:
-            ProvBuilder.agent(g, imp)
+            ProvBuilder.associate(g, exe, imp, Prefix.base().implementation)
+        
+        [ g.add(x) for x in triples ]
+    
+    @staticmethod
+    def associate(g: FnOGraph, exe, agent, role = None, plan = None):
+        
+        ProvBuilder.agent(g, agent)
+        triples = [
+            (exe, Prefix.prov().wasAssociatedWith, agent),
+        ]
+        
+        # Qualified association
+        if role or plan:
             association = BNode()
             triples.extend([
-                (exe, Prefix.prov().wasAssociatedWith, imp),
                 (association, RDF.type, Prefix.prov().Association),
                 (exe, Prefix.prov().qualifiedAssociation, association),
-                (association, Prefix.prov().agent, imp),
-                (association, Prefix.prov().hadRole, Prefix.base().implementation),
-                (association, Prefix.prov().hadPlan, fun),
+                (association, Prefix.prov().agent, agent),
             ])
+            
+            if role:
+                triples.append((association, Prefix.prov().hadRole, role))
+            if plan:
+                triples.append((association, Prefix.prov().hadPlan, plan))
         
         [ g.add(x) for x in triples ]

@@ -1,19 +1,16 @@
-import json
-from PyQt6.QtGui import QPainter, QColor
-from PyQt6.QtWidgets import QTextEdit, QGraphicsRectItem
-from PyQt6.QtCore import QRectF
+from PyQt6.QtGui import QPainter, QResizeEvent
+from PyQt6.QtWidgets import QWidget, QSplitter, QVBoxLayout, QSlider, QSizePolicy
+from PyQt6.QtCore import Qt
 
-from pyqtgraph import GraphicsView, ViewBox, mkBrush, mkPen
-from pyqtgraph.dockarea import DockArea, Dock
-from rdflib import URIRef
-import numpy as np
+from pyqtgraph import GraphicsView, ViewBox
 
-from ..executors.store import Mapping
-from ..executors.executeable import Composition, Function
+from ..executors.store import Mapping, ValueStore
+from ..executors.executeable import Function
 from ..graph import FnOGraph
 from .function import FunctionGraphicsItem
 from .store import StoreGraphicsItem
 from .mapping import DataMappingGraphicsItem, ControlMappingGraphicsItem
+from .widgets import FunctionWidget, TerminalWidget, LabeledDockWidget
 from ..elk import elk_layout
 
 class ExeGraphicsView(GraphicsView):
@@ -41,40 +38,62 @@ class ExeViewBox(ViewBox):
     def items(self):
         return self.addedItems
 
-class ExeViewWidget(DockArea):
-
+class ExeViewWidget(QWidget):
     def __init__(self, ctrl):
-        DockArea.__init__(self)
+        super().__init__()
 
         self.ctrl = ctrl
-        self.hoverItem = None
-        self.nextZVal = 10
-
-        # The graphics view
         self.view = ExeGraphicsView(ctrl)
-        self.viewDock = Dock('view', size=(1000, 900))
-        self.viewDock.addWidget(self.view)
-        self.viewDock.hideTitleBar()
-        self.addDock(self.viewDock)
-
-        self.hoverText = QTextEdit()
-        self.hoverText.setReadOnly(True)
-        self.hoverDock = Dock('Hover Info', size=(1000, 5))
-        self.hoverDock.addWidget(self.hoverText)
-        self.addDock(self.hoverDock, 'bottom')
-
-        # TODO add scrollable info
-        self.selectText = QTextEdit()
-        self.selectText.setReadOnly(True)
-        self.selectDock = Dock('Selected Node', size=(1000, 500))
-        self.selectDock.addWidget(self.selectText)
-        self.addDock(self.selectDock, 'bottom')
-
+        self.terminalWidget = TerminalWidget()
+        self.functionWidget = FunctionWidget()
+        
+        # Scene and viewBox references
         self._scene = self.view.scene()
         self._viewBox = self.view.viewBox()
 
-        self._scene.selectionChanged.connect(self.selectionChanged)
+        # Main splitter (only terminal + function will be resizable by user)
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.view_container = QWidget()
+        self.view_container.setLayout(QVBoxLayout())
+        self.view_container.layout().setContentsMargins(0, 0, 0, 0)
+        self.view_container.layout().addWidget(self.view)
+        self.view_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        self.splitter.addWidget(self.view_container)
+        self.splitter.addWidget(LabeledDockWidget("Instance", self.terminalWidget))
+        self.splitter.addWidget(LabeledDockWidget("Function", self.functionWidget))
+
+        # Slider to control view height only
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, 100)
+        self.slider.setValue(100)
+        self.slider.valueChanged.connect(self.update_view_height)
+
+        # Layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.slider)
+        layout.addWidget(self.splitter)
+        self.setLayout(layout)
+        
+        # Connect hover
         self._scene.sigMouseHover.connect(self.hoverOver)
+        self.selected_store = None
+        self.hover_store = None
+        
+        self.update_view_height()
+
+    def update_view_height(self):
+        max_height = 600
+        percent = self.slider.value() / 100.0
+        new_height = int(percent * max_height)
+
+        self.view_container.setMaximumHeight(new_height)
+        self.view_container.setMinimumHeight(new_height)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_view_height()
     
     def scene(self):
         return self._scene
@@ -82,7 +101,10 @@ class ExeViewWidget(DockArea):
     def viewBox(self):
         return self._viewBox
     
-    def setFunction(self, function: Function):
+    def setFunction(self, g: FnOGraph, function: Function):
+        self.g = g
+        self.functionWidget.set_graph(g)
+        
         self.function = function
         self.items = {}
         self.terminals = {}
@@ -94,28 +116,33 @@ class ExeViewWidget(DockArea):
         
         self.draw()
     
-    def selectionChanged(self):
-        items = self._scene.selectedItems()
-        if len(items) > 0:
-            item = items[0]
-            self.selectText.setPlainText(f"Selected item: {item}")
+    def onFunctionSelected(self, function: Function):
+        # Implementation details
+        self.functionWidget.set_data(function)
+    
+    def onStoreSelected(self, store: ValueStore):
+        self.selected_store = store
+        self.terminalWidget.set_data(store)
     
     def hoverOver(self, items):
-        store = None
+        hovered_store = None
+
         for item in items:
-            if item is self.hoverItem:
-                return
-            self.hoverItem = item
-            if isinstance(item, StoreGraphicsItem):
-                store = item.store
+            if isinstance(item, StoreGraphicsItem):  # Assuming this is your terminal graphics item
+                hovered_store = item.store
                 break
-        if store is None:
-            self.hoverText.setPlainText("")
+
+        if hovered_store == self.hover_store:
+            return  # Nothing changed
+
+        self.hover_store = hovered_store
+
+        if self.hover_store:
+            self.terminalWidget.set_data(self.hover_store)
+        elif self.selected_store:
+            self.terminalWidget.set_data(self.selected_store)
         else:
-            value = str(store.value)
-            if len(value) > 400:
-                value = value[:400] + "..."
-            self.hoverText.setPlainText("%s = %s" % (store.name, value))
+            self.terminalWidget.clear_content()
     
     def draw(self):
         # reset the viewbox
@@ -152,10 +179,12 @@ class ExeViewWidget(DockArea):
         item = FunctionGraphicsItem(fun, self)
         item.setZValue(self.nextZVal*2)
         self.nextZVal += 1
+        item.functionSelected.connect(self.onFunctionSelected)
         self.viewBox().addItem(item)
         
         self.items[fun] = item
         for terminal_item in item.terminals.values():
+            terminal_item.storeSelected.connect(self.onStoreSelected)
             self.terminals[terminal_item.store] = terminal_item
         
         if parent:

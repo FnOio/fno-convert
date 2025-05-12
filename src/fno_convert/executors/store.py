@@ -2,6 +2,7 @@ from ..graph import get_name, FnOGraph
 from ..mappers import PythonMapper
 from rdflib import URIRef
 from enum import Enum, auto
+from PyQt6.QtCore import QObject, pyqtSignal
 
 class MappingType(Enum):
     POSITIONAL = auto()
@@ -33,7 +34,9 @@ class ParameterMapping:
             self.property = index
             self.type = MappingType.POSITIONAL
         
-        self.has_default, self.default = g.get_default_mapping(mapping, par)    
+        self.has_default, self.default = g.get_default_mapping(mapping, par)
+        if self.has_default:
+            self.default = PythonMapper.term_to_value(g, self.default)   
         
     def get_type(self):
         return self.type
@@ -73,9 +76,12 @@ class Mapping:
                 sources.add(source)
         return sources
 
-class ValueStore:
+class ValueStore(QObject):
+    
+    valueSet = pyqtSignal()
     
     def __init__(self, type=None):
+        super().__init__()
         self.value = None
         self.type = type
         self.value_set = False
@@ -87,6 +93,7 @@ class ValueStore:
     def set(self, value):
         self.value_set = True
         self.value = value
+        self.valueSet.emit()
 
 class Terminal(ValueStore):
 

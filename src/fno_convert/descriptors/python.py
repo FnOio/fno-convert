@@ -382,7 +382,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         MappingNode
             A MappingNode containing the constant
         """
-        return MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, value))
+        return MappingNode().set_constant(PythonMapper.value_to_term(self.g, value))
     
     def handle_name(self, id):
         """
@@ -422,15 +422,15 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
             if obj.__name__ not in self.g.f_counter:
                 self.describe_resource(obj)
             # Return the object without context
-            return MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, obj))
+            return MappingNode().set_constant(PythonMapper.value_to_term(self.g, obj))
         
         # Check if it references a module
         mod = self.importer.get_module(id)
         if mod:
-            return MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, mod))
+            return MappingNode().set_constant(PythonMapper.value_to_term(self.g, mod))
         
         # Return the identifier without context if no resolution is found
-        return MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, id))
+        return MappingNode().set_constant(PythonMapper.value_to_term(self.g, id))
     
     def handle_augassignment(self, target, op, value):
         self.handle_assignment(ast.BinOp(target, op, value), [target])
@@ -597,7 +597,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
             
             value_output = self.handle_stmt(func.value)
             if value_output.from_term():
-                value_type = type(value_output.get_value().value)
+                value_type = type(getattr(value_output.get_value(), 'value', None))
             else:
                 value_type = self.get_type(value_output.get_value())
             
@@ -938,7 +938,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         # Handle the value node
         if isinstance(value, ast.Name) and self.importer.is_module(value.id):
             # An object from an imported module is used
-            mapfrom = MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, self.importer.get_module(value.id).__name__))
+            mapfrom = MappingNode().set_constant(PythonMapper.value_to_term(self.g, self.importer.get_module(value.id).__name__))
             mapto = MappingNode().set_function_par(call, Prefix.cf()['ValueParameter'])
             self.handle_mapping(mapfrom, mapto)
         else:
@@ -1004,9 +1004,9 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         FnOBuilder.apply(self.g, call, f)"""
 
         # Handle the lower, upper, and step components of the slice
-        lower_output = self.handle_stmt(lower) if lower else MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, None))
-        upper_output = self.handle_stmt(upper) if upper else MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, None))
-        step_output = self.handle_stmt(step) if step else MappingNode().set_constant(PythonMapper.value_to_rdf(self.g, None))
+        lower_output = self.handle_stmt(lower) if lower else MappingNode().set_constant(PythonMapper.value_to_term(self.g, None))
+        upper_output = self.handle_stmt(upper) if upper else MappingNode().set_constant(PythonMapper.value_to_term(self.g, None))
+        step_output = self.handle_stmt(step) if step else MappingNode().set_constant(PythonMapper.value_to_term(self.g, None))
         
         return self.handle_func("slice", "slice", slice, [lower_output, upper_output, step_output])
 
@@ -2073,7 +2073,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
                 kargs = par
             
             if param.default is not inspect._empty:
-                defaults[par] = PythonMapper.value_to_rdf(self.g, param.default)
+                defaults[par] = PythonMapper.value_to_term(self.g, param.default)
                 self.scope.default_map[s].update({name: param.default})
 
         FnOBuilder.describe_mapping(self.g, s, imp, f_name, output, positional, keyword, args, kargs, self_output, defaults)

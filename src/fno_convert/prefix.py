@@ -154,3 +154,22 @@ class Prefix:
             str: The base URI.
         """
         return Prefix.ns('tree')
+    
+    @staticmethod
+    def uri_to_str(uri):
+        """
+        Convert a full URI to a prefixed string if possible.
+
+        Args:
+            uri (str or rdflib.URIRef): The full URI.
+
+        Returns:
+            str: The URI in prefixed form if a matching namespace is found, otherwise the full URI.
+        """
+        uri_str = str(uri).removeprefix("file://")
+        for prefix, ns in Prefix.NAMESPACES.items():
+            ns_str = str(ns)
+            if uri_str.startswith(ns_str):
+                local_part = uri_str[len(ns_str):]
+                return f"{prefix}:{local_part}" if prefix else local_part
+        return uri_str

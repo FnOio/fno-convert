@@ -1,7 +1,9 @@
 from ..graph import FnOGraph, get_name
 from .store import Mapping, Terminal, ValueStore, ParameterMapping, MappingType
-from rdflib import URIRef
+from ..mappers import PythonMapper
+from rdflib import URIRef, Literal
 from typing import Dict, List, Set
+from PyQt6.QtCore import pyqtSignal, QObject
 
 class Composition:
 
@@ -38,8 +40,11 @@ class Composition:
                 call, ter = g.get_function_mapping(mapfrom)
                 source = self.get_terminal(call, ter)
             elif g.is_term_mapping(mapfrom):
-                source = ValueStore(mapfrom.datatype)
-                source.set(mapfrom.value)
+                if isinstance(mapfrom, Literal):
+                    source = ValueStore(mapfrom.datatype)
+                else:
+                    source = ValueStore()
+                source.set(PythonMapper.term_to_value(g, mapfrom))
             
             # Handle mapto
             call, ter = g.get_function_mapping(mapto)
@@ -104,12 +109,16 @@ class Composition:
     def __eq__(self, other: object) -> bool:
         return isinstance(other, Composition) and self.uri == other.uri
 
-class Function:
+class Function(QObject):
+    
+    implementationChanged = pyqtSignal(object)
 
     def __init__(self, g: FnOGraph, fun: URIRef, map: URIRef = None, imp: URIRef = None, internal=False) -> None:
+        super().__init__()
+        
         self.fun_uri = fun
         self.name = g.get_name(fun)
-        self.imp = imp
+        self._imp = imp
         self._map = None
         self.g = g
 
@@ -165,6 +174,18 @@ class Function:
             self.internal = False
         
         return self.internal
+    
+    @property
+    def imp(self):
+        return self._imp
+    
+    @imp.setter
+    def imp(self, uri):
+        if uri != self._imp:
+            self._imp = uri
+            self.implementationChanged.emit(uri)
+        
+        
     
     @property
     def map(self):
@@ -271,3 +292,4 @@ class Provenance:
         self.msgs = []
         self.files_created = []
         self.files_modified = []
+        self.generated = []

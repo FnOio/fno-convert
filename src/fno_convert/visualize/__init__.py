@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QTabWidget
 from .flowctrl import ExeCtrlWidget
 from .load import ScrollWidget, Descripter
 
+import os
+
 class PY2RDFWindow(QMainWindow):
 
     def __init__(self) -> None:

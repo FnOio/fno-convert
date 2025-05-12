@@ -35,6 +35,10 @@ class PythonBuilder:
     @staticmethod
     def describe_class(g, imp_uri):
         g.add((imp_uri, RDF.type, Prefix.ns('fnoi').PythonClass))
+        
+    @staticmethod
+    def describe_module(g, imp_uri):
+        g.add((imp_uri, RDF.type, Prefix.ns('fnoi').PythonModule))
     
     @staticmethod
     def describe_method(g, imp_uri, self, static):

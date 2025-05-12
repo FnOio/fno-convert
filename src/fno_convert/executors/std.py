@@ -32,7 +32,7 @@ class Executer(ABC):
                 return self.fun_provenance(fun)
             except Exception as e:
                 print(f"Error when executing {fun.fun_uri} with executor {self.__class__.__name__}: {e}")
-                traceback.print_exc()
+                # traceback.print_exc()
                 pass
         # Consider all available mappings
         elif fun.imp is None:
@@ -65,7 +65,7 @@ class Executer(ABC):
                         return self.fun_provenance(fun)
                     except Exception as e:
                         print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
-                        traceback.print_exc()
+                        # traceback.print_exc()
                         pass
         # Execute with given mapping and implementation
         elif fun.map and fun.imp:
@@ -78,7 +78,7 @@ class Executer(ABC):
                     return self.fun_provenance(fun)
                 except Exception as e:
                     print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
-                    traceback.print_exc()
+                    # traceback.print_exc()
                     pass
         
         # Try an alternative executor
@@ -99,11 +99,22 @@ class Executer(ABC):
                 self.logger.pop()
                 return self.fun_provenance(fun)
         
-        raise Exception(f"{self.__class__.__name__} is unable to execute {fun.name}.")
+        raise Exception(f"{self.__class__.__name__} is unable to execute {fun.name} ({fun.fun_uri}).")
     
     def execute_with_mapping(self, fun: Function, *args, **kwargs):
         self.map(fun)
+        
+        # Change workdir if executing a file
+        file = self.g.get_file(fun.imp)
+        current_wd = os.getcwd()
+        if file:
+            os.chdir(os.path.dirname(file))
+        
         out = self.execute_function(fun, *args, **kwargs)
+        
+        # Change back to previous workdir
+        os.chdir(current_wd)
+        
         return out
     
     def is_handled(self, uri):
@@ -133,16 +144,28 @@ class Executer(ABC):
                               fun_uri, fun.imp,
                               fun.prov.startedAt, fun.prov.endedAt)
         
+        # Associate executor as agent
+        if fun.internal:
+            ProvBuilder.associate(self.pg, exe_uri, self.uri(), Prefix.base().composition, fun.comp_uri)
+        
         terminal_values = {}
         for terminal in fun.terminals.values():
             inst_uri = self.terminal_provenance(terminal, exe_id)
-            
             
             if terminal.is_output:
                 ProvBuilder.wasGeneratedBy(self.pg, inst_uri, exe_uri)
             else:
                 ProvBuilder.used(self.pg, exe_uri, inst_uri)
             terminal_values[terminal.pred] = inst_uri
+        
+        # Outputs are derived from inputs
+        for output in fun.outputs():
+            for input in fun.inputs():
+                ProvBuilder.derivedFrom(self.pg, output.prov.instance, input.prov.instance)
+                
+                # TODO implement context mapping and use this instead of self predicate
+                if (output.name == 'self_output' and input.name == 'self'):
+                    ProvBuilder.specialiazitionOf(self.pg, output.prov.instance, input.prov.instance)
             
         FnOBuilder.describe_execution(self.pg, exe_uri, fun_uri, fun.map, terminal_values)
         
@@ -165,27 +188,29 @@ class Executer(ABC):
         fun.prov.files_created = []
         fun.prov.files_modified = []
         
+        # Describe generated uris
+        for uri in fun.prov.generated:
+            ProvBuilder.wasGeneratedBy(self.pg, uri, exe_uri)
+        
         return exe_uri
     
     def terminal_provenance(self, term: Terminal, exe_id):
-        if term.is_output or len(term.prov.sources) != 1:
+        if not term.is_output and len(term.prov.sources) == 1:
+            # Re-use the instance uri of the source
+            term.prov.instance = term.prov.sources[0]
+        else:
             # Create a new RDF instance for the terminal value
             inst_uri = Prefix.base()[f"{term.name}{exe_id}"]
             term.prov.instance = inst_uri
             ProvBuilder.entity(self.pg, inst_uri)
             
-            rdf_value = PythonMapper.value_to_rdf(self.pg, term.get())
+            rdf_value = PythonMapper.value_to_term(self.pg, term.get())
             ProvBuilder.value(self.pg, inst_uri, rdf_value)
             
-            if len(term.prov.sources) > 1:
-                # The new instance is derived from multiple sources
-                for source in term.prov.sources:
-                    ProvBuilder.derivedFrom(self.pg, inst_uri, source)
-            
-            return inst_uri
+            for src in term.prov.sources:
+                ProvBuilder.derivedFrom(self.pg, inst_uri, src)
         
-        # Re-use the instance uri of the source
-        return term.prov.sources[0]
+        return term.prov.instance
             
     
     def comp_provenance(self, comp: Composition, exe_uri=None):
@@ -199,7 +224,7 @@ class Executer(ABC):
             msg_id = hashlib.sha256(f"{msg}{time}".encode()).hexdigest()[:8]
             msg_uri = Prefix.base()[f"message{msg_id}"]
             ProvBuilder.entity(self.pg, msg_uri)
-            ProvBuilder.value(self.pg, msg_uri, PythonMapper.value_to_rdf(self.pg, msg))
+            ProvBuilder.value(self.pg, msg_uri, PythonMapper.value_to_term(self.pg, msg))
             ProvBuilder.wasGeneratedBy(self.pg, msg_uri, exe_uri, time)
     
     def file_provenance(self, exe_uri, created, modified):
@@ -228,6 +253,10 @@ class Executer(ABC):
             
             # Event provenance
             ProvBuilder.usageEvent(self.pg, event_uri, exe_uri, file_uri)
+    
+    @abstractmethod
+    def uri(self):
+        pass
     
     @abstractmethod
     def accepts(self, mapping, imp):

@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy, QHeaderView, 
                              QTreeWidgetItem, QVBoxLayout, QLineEdit, QPushButton, 
-                             QGridLayout, QComboBox, QMessageBox)
+                             QGridLayout, QComboBox, QMessageBox, QFileDialog)
 from PyQt6.QtGui import QIntValidator, QDoubleValidator
 from rdflib import URIRef
 from pyqtgraph import TreeWidget
@@ -21,11 +21,12 @@ class ExeCtrlWidget(QWidget):
 
         self.grid = QGridLayout(self)
 
-        self.inputWidget = InputWidget()
-        self.grid.addWidget(self.inputWidget, 0, 0)
         self.viewWidget = ExeViewWidget(self)
-        self.grid.addWidget(self.viewWidget, 0, 1, 2, 1)
+        self.inputWidget = InputWidget(self.viewWidget)
         self.functionList = FunctionList(self.viewWidget)
+        
+        self.grid.addWidget(self.inputWidget, 0, 0)
+        self.grid.addWidget(self.viewWidget, 0, 1, 2, 1)
         self.grid.addWidget(self.functionList, 1, 0)
 
         self.grid.setRowStretch(0, 1)
@@ -45,7 +46,7 @@ class ExeCtrlWidget(QWidget):
         
         self.function = Function(g, fun_uri, map_uri, imp_uri)
         
-        self.viewWidget.setFunction(self.function)
+        self.viewWidget.setFunction(g, self.function)
         self.inputWidget.setFunction(g, self.function)
         self.functionList.setFunction(self.function)
 
@@ -54,8 +55,9 @@ class InputWidget(QWidget):
     # TODO Allow more executors
     # TODO Accept input
 
-    def __init__(self) -> None:
+    def __init__(self, view: ExeViewWidget) -> None:
         QWidget.__init__(self)
+        self.view = view
         self.items = {}
         
         self.inputList = TreeWidget()
@@ -75,15 +77,19 @@ class InputWidget(QWidget):
 
         execute = QPushButton('Execute', self)
         execute.clicked.connect(self.execute)
+        
+        self.save_btn = QPushButton('Save Provenance', self)
+        self.save_btn.setEnabled(False)  # Initially disabled
+        self.save_btn.clicked.connect(self.save_provenance)
 
         layout = QVBoxLayout()
         layout.addWidget(self.inputList)
         layout.addWidget(self.executor)
         layout.addWidget(execute)
+        layout.addWidget(self.save_btn)
         self.setLayout(layout)
     
     def setFunction(self, g, function: Function):
-        self.file = g.get_file(function.imp)
         self.inputList.clear()
         self.function = function
         inputs = function.inputs()
@@ -105,20 +111,36 @@ class InputWidget(QWidget):
             return
         
         exe = self.executors[self.executor.currentText()](self.function.g)
-        
-        current_wd = os.getcwd()
-        if self.file:
-            file_dir = os.path.dirname(self.file)
-            os.chdir(file_dir)
 
         logger = ProvLogger()
         logger.start()
         pg, _ = exe.provenance(self.function, logger=logger)
         logger.stop()
         
-        os.chdir(current_wd)
+        # set the provenance graph as new graph
+        self.view.terminalWidget.set_graph(pg)
+        self.view.functionWidget.set_graph(pg)
         
-        pg.serialize("graphs/prov/prov.ttl", format="turtle")
+        self.prov_graph = pg
+        self.save_btn.setEnabled(True)
+    
+    def save_provenance(self):
+        if not self.prov_graph:
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Provenance File",
+            "provenance.ttl",
+            "Turtle Files (*.ttl);;All Files (*)"
+        )
+        if filename:
+            try:
+                self.prov_graph.serialize(destination=filename, format="turtle")
+                self.show_message(f"Provenance saved to:\n{filename}", QMessageBox.Icon.Information)
+            except Exception as e:
+                self.show_message(f"Failed to save provenance:\n{str(e)}", QMessageBox.Icon.Critical)
+
     
     def show_message(self, message, icon):
         msg_box = QMessageBox()
@@ -227,10 +249,12 @@ class FunctionList(QWidget):
         self.setLayout(layout)
     
     def setFunction(self, function: Function):
-        self.list.clear()
         self.function = function
-        
-        self.add_function_item(function)
+        self.makeList()
+    
+    def makeList(self):
+        self.list.clear()
+        self.add_function_item(self.function)
 
     def add_function_item(self, fun: Function, parent=None):
         item = QTreeWidgetItem([fun.name, ""])
@@ -241,13 +265,18 @@ class FunctionList(QWidget):
             self.list.addTopLevelItem(item)
 
         if fun.comp_uri:
-            fun.setInternal(False)
-            expandButton = QPushButton('Expand')
-            expandButton.setFixedWidth(50)
-            expandButton.fun = fun
-            expandButton.item = item
-            expandButton.clicked.connect(self.toggleChildren)
-            self.list.setItemWidget(item, 1, expandButton)
+            if fun.internal:
+                toggleBtn = QPushButton('Hide')
+                for call in fun.comp.functions.values():
+                    self.add_function_item(call, item)
+            else:
+                toggleBtn = QPushButton('Expand')
+            
+            toggleBtn.setFixedWidth(50)
+            toggleBtn.fun = fun
+            toggleBtn.item = item
+            toggleBtn.clicked.connect(self.toggleChildren)
+            self.list.setItemWidget(item, 1, toggleBtn)
     
     def toggleChildren(self):
         btn = QObject.sender(self)

@@ -36,7 +36,7 @@ class MappingNode:
         return self
     
     def set_constant(self, constant) -> "MappingNode":
-        if not isinstance(constant, Literal):
+        if not isinstance(constant, (URIRef, Literal)):
             constant = Literal(constant)        
         self.constant = constant
         self.context = None

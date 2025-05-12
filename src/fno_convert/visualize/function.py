@@ -1,14 +1,16 @@
-from PyQt6.QtGui import QColor, QPen, QBrush
-from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtWidgets import QGraphicsTextItem
+from PyQt6.QtGui import QColor, QPen, QBrush, QAction
+from PyQt6.QtCore import QRectF, Qt, pyqtSignal
+from PyQt6.QtWidgets import QGraphicsTextItem, QMenu
 from pyqtgraph import GraphicsObject
 
 from ..executors.executeable import Function
-from .store import TerminalGraphicsItem
+from .store import StoreGraphicsItem
 from .mapping import MappingGraphicsItem, ControlMappingGraphicsItem
 from .colors import STD_COLOR
 
 class FunctionGraphicsItem(GraphicsObject):
+    
+    functionSelected = pyqtSignal(object)
 
     def __init__(self, function: Function, view):
         GraphicsObject.__init__(self)
@@ -44,7 +46,7 @@ class FunctionGraphicsItem(GraphicsObject):
         
         # Create terminals
         for term in self.function.terminals.values():
-            item = TerminalGraphicsItem(term, self)
+            item = StoreGraphicsItem(term, self)
             item.setZValue(self.zValue())
             self.terminals[term.id()] = item
 
@@ -116,10 +118,11 @@ class FunctionGraphicsItem(GraphicsObject):
     def mouseClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             event.accept()
-            """selected = self.isSelected()
+            selected = self.isSelected()
             self.setSelected(True)
             if not selected and self.isSelected():
-                self.update()"""
+                self.functionSelected.emit(self.function)
+                self.update()
     
     def hoverEvent(self, event):
         if not event.isExit() and event.acceptClicks(Qt.MouseButton.LeftButton):
@@ -131,6 +134,31 @@ class FunctionGraphicsItem(GraphicsObject):
     
     def keyPressEvent(self, event) -> None:
         event.ignore()
+    
+    def contextMenuEvent(self, event):
+        context_menu = QMenu()
+        
+        if self.function.comp_uri:
+            if self.function.internal:
+                action = QAction("Hide", self)
+                action.triggered.connect(self.hide_function)
+            else:
+                action = QAction("Expand", self)
+                action.triggered.connect(self.expand_function)
+            context_menu.addAction(action)
+
+        # Display the context menu at the mouse position
+        context_menu.exec(event.screenPos())
+    
+    def hide_function(self):
+        self.function.setInternal(False)
+        self.view.draw()
+        self.view.ctrl.functionList.makeList()
+    
+    def expand_function(self):
+        self.function.setInternal(True)
+        self.view.draw()
+        self.view.ctrl.functionList.makeList()
     
     def internalMappings(self):
         mappings = set()
