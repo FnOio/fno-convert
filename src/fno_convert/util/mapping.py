@@ -1,5 +1,5 @@
 from typing import List
-from rdflib import URIRef, Literal
+from rdflib import URIRef, Literal, BNode
 
 class Mapping:
 
@@ -36,7 +36,7 @@ class MappingNode:
         return self
     
     def set_constant(self, constant) -> "MappingNode":
-        if not isinstance(constant, (URIRef, Literal)):
+        if not isinstance(constant, (URIRef, Literal, BNode)):
             constant = Literal(constant)        
         self.constant = constant
         self.context = None

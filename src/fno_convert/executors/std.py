@@ -4,8 +4,9 @@ from rdflib import URIRef
 import traceback, os, hashlib
 
 from ..graph import FnOGraph
-from .executeable import Function, AppliedFunction, Composition
-from .store import Terminal
+from ..model.function import Function, AppliedFunction
+from ..model.composition import Composition
+from ..model.store import Terminal
 from ..builders import ProvBuilder, FnOBuilder, LDESBuidlder
 from ..mappers import PythonMapper, FileMapper
 from ..util.prov import ProvLogger
@@ -32,7 +33,7 @@ class Executer(ABC):
                 return self.fun_provenance(fun)
             except Exception as e:
                 print(f"Error when executing {fun.fun_uri} with executor {self.__class__.__name__}: {e}")
-                # traceback.print_exc()
+                traceback.print_exc()
                 pass
         # Consider all available mappings
         elif fun.imp is None:
@@ -65,7 +66,7 @@ class Executer(ABC):
                         return self.fun_provenance(fun)
                     except Exception as e:
                         print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
-                        # traceback.print_exc()
+                        traceback.print_exc()
                         pass
         # Execute with given mapping and implementation
         elif fun.map and fun.imp:
@@ -78,7 +79,7 @@ class Executer(ABC):
                     return self.fun_provenance(fun)
                 except Exception as e:
                     print(f"Error when executing Mapping {fun.map} with executor {self.__class__.__name__}: {e}")
-                    # traceback.print_exc()
+                    traceback.print_exc()
                     pass
         
         # Try an alternative executor
@@ -107,7 +108,7 @@ class Executer(ABC):
         # Change workdir if executing a file
         file = self.g.get_file(fun.imp)
         current_wd = os.getcwd()
-        if file:
+        if file and os.path.dirname(file):
             os.chdir(os.path.dirname(file))
         
         out = self.execute_function(fun, *args, **kwargs)

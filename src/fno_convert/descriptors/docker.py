@@ -1,14 +1,13 @@
 from dockerfile_parse import DockerfileParser
 from rdflib import URIRef
+from pathlib import Path
 
 import ast, os
-
+from . import CLIDescriptor
 from ..prefix import Prefix
 from ..graph import FnOGraph
 from ..builders import FnOBuilder, DockerBuilder, ProvBuilder
-from ..descriptors.file import AbstractFileDescriptor
-from ..descriptors.python import PythonDescriptor
-from ..mappers import FileMapper
+from ..mappers import FileMapper, PythonMapper
 from ..util.std_kg import STD_KG
 from ..util.mapping import Mapping, MappingNode
 
@@ -17,43 +16,46 @@ OUTPUT_IMAGE = Prefix.do()["imageOutputParam"]
 
 # TODO multiple build stages
 
-class DockerfileDescriptor(AbstractFileDescriptor):
+class DockerfileDescriptor:
     
     def __init__(self, g: FnOGraph) -> None:
         self.parser = DockerfileParser()
         self.g = g
+        
+        self.workdir = '.'
+        self.files = {}
+    
+    def can_describe_file(self, path):
+        return path.endswith("Dockerfile")
     
     def describe_file(self, path):
-        if path.endswith("Dockerfile"):
-            self.dir = os.path.dirname(path)
-            name = os.path.basename(self.dir)
-            file_uri = FileMapper.uri(path)
-            fun_uri = Prefix.base()[f"{name}Dockerfile"]
-            if not self.g.exists(file_uri):
-                
-                ### DOCKERFILE ###
-                map_uri = DockerBuilder.describe_dockerfile(self.g, path, fun_uri, file_uri)
+        self.dir = os.path.dirname(path)
+        name = os.path.basename(self.dir)
+        file_uri = FileMapper.uri(path)
+        fun_uri = Prefix.base()[f"{name}Dockerfile"]
+        if not self.g.exists(file_uri):
             
-                ### URI ###
+            ### DOCKERFILE ###
+            map_uri = DockerBuilder.describe_dockerfile(self.g, path, fun_uri, file_uri)
+        
+            ### URI ###
+            
+            comp_uri = URIRef(f"{fun_uri}Composition")
+            
+            self.parser.dockerfile_path = path
+            
+            self.prev_instruction = None
+            self.mappings = []
+            
+            for inst in self.parser.structure:
+                self.handle_inst(inst)
+            
+            FnOBuilder.describe_composition(self.g, comp_uri, self.mappings, represents=fun_uri)
+            
+            # Indicate start
+            FnOBuilder.start(self.g, comp_uri, self.start)
                 
-                comp_uri = URIRef(f"{fun_uri}Composition")
-                
-                self.parser.dockerfile_path = path
-                
-                self.prev_instruction = None
-                self.mappings = []
-                
-                for inst in self.parser.structure:
-                    self.handle_inst(inst)
-                
-                FnOBuilder.describe_composition(self.g, comp_uri, self.mappings, represents=fun_uri)
-                
-                # Indicate start
-                FnOBuilder.start(self.g, comp_uri, self.start)
-                    
-            return fun_uri, [map_uri], file_uri
-        else:
-            return super().describe_file(path)
+        return fun_uri, [map_uri], file_uri
     
     def handle_mapping(self, mapfrom, mapto):
         self.mappings.append(Mapping(mapfrom, mapto))
@@ -124,11 +126,12 @@ class DockerfileDescriptor(AbstractFileDescriptor):
         # Set entrypoint command parameters
         if len(values) > 1:
             entrypoint_cmd_params = MappingNode().set_function_par(call_uri, Prefix.do()['entrypointInputParamList'])
-            for i, value in enumerate(values[1:]):
-                # value = Descriptor.describe(self.g, value, dir=self.dir)
+            values = MappingNode().set_constant(PythonMapper.value_to_term(self.g, values[1:]))
+            self.handle_mapping(values, entrypoint_cmd_params)
+            """for i, value in enumerate(values[1:]):
                 param = MappingNode().set_constant(value)
                 entrypoint_cmd_params.set_strategy("toList", i)
-                self.handle_mapping(param, entrypoint_cmd_params)
+                self.handle_mapping(param, entrypoint_cmd_params)"""
         
         self.handle_order(call_uri)
     
@@ -160,36 +163,47 @@ class DockerfileDescriptor(AbstractFileDescriptor):
         
         self.handle_order(call_uri)
         
-        # provide representation for python functions
-        value = value.split(' ')
-        if value[0].startswith('python'):
-            # TODO handle arguments
-            file = os.path.join(self.dir, value[1])
-            fun_uri, _, _ = PythonDescriptor(self.g).describe_file(file)
-            
-            comp_uri = URIRef(f"{call_uri}Composition")
-            FnOBuilder.describe_composition(self.g, comp_uri, [], represents=call_uri)
-            FnOBuilder.start(self.g, comp_uri, fun_uri)
+        # Check if the run cmd can be written as an FnO Function
+        try:
+            fun_uri, comp_uri = CLIDescriptor(self.g).describe(value)
+            FnOBuilder.represents(self.g, comp_uri, call_uri)
+            ProvBuilder.specialiazitionOf(self.g, call_uri, fun_uri)
+        except ValueError as e:
+            pass
     
     def handle_copy(self, value):
         inst = 'copy'
         call_uri = self.get_call(inst)
         
-        # Convert input parameter to list
-        value = value.split(' ')
-        
+        # Split input string into components
+        parts = value.split()
+        if len(parts) != 2:
+            return  # Ignore malformed COPY commands
+
+        src, dest = parts
+
         # Set src parameter
-        src = MappingNode().set_constant(value[0])
+        src_node = MappingNode().set_constant(src)
         src_input = MappingNode().set_function_par(call_uri, Prefix.do()['copySrc'])
-        self.handle_mapping(src, src_input)
-        
+        self.handle_mapping(src_node, src_input)
+
         # Set dest parameter
-        dest = MappingNode().set_constant(value[1])
+        dest_node = MappingNode().set_constant(dest)
         dest_input = MappingNode().set_function_par(call_uri, Prefix.do()['copyDest'])
-        self.handle_mapping(dest, dest_input)
+        self.handle_mapping(dest_node, dest_input)
+
+        # Update COPY mappings for COPY . .
+        if src == '.' and dest == '.':
+            src_path = Path(self.dir).resolve()
+
+            for local_file in src_path.rglob('*'):
+                if local_file.is_file():
+                    relative_path = local_file.relative_to(src_path)
+                    container_path = (Path(self.workdir) / relative_path).as_posix()
+                    self.files[container_path] = str(local_file)
         
         self.handle_order(call_uri)
-    
+        
     def handle_workdir(self, value):
         inst = 'workdir'
         call_uri = self.get_call(inst)
@@ -200,3 +214,6 @@ class DockerfileDescriptor(AbstractFileDescriptor):
         self.handle_mapping(dir, dir_input)
         
         self.handle_order(call_uri)
+        
+        # store workdir
+        self.workdir = value

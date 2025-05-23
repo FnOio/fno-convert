@@ -1,0 +1,2 @@
+[console_scripts]
+fno-convert = fno_convert.cli:main

@@ -3,7 +3,7 @@ import traceback
 from fno_convert.descriptors import ResourceDescriptor
 from fno_convert.graph import FnOGraph
 from fno_convert.executors.python import PythonExecutor
-from fno_convert.executors.executeable import Function
+from fno_convert.model.function import Function
 
 from docker_examples.diagnose.train import train
 

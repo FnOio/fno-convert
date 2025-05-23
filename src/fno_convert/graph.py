@@ -239,7 +239,7 @@ class FnOGraph(Graph):
             print(f"Error while querying function from name {name}: <{e}>")
             return
 
-    def get_parameters(self, f) -> list[str]:
+    def get_parameters(self, f, include_self=False) -> list[str]:
         """
         Retrieves the list of parameters for a function, excluding 'self' parameters.
 
@@ -248,7 +248,7 @@ class FnOGraph(Graph):
         :return: list[str]
             A sorted list of parameter URIs.
         """
-        return sorted([
+        result = sorted([
             x['param']
             for x in self.query(f'''
                 SELECT ?param WHERE {{
@@ -260,6 +260,13 @@ class FnOGraph(Graph):
                 }}
             ''', initNs=Prefix.NAMESPACES)
         ])
+        
+        if include_self:
+            self_param = self.get_self(f)
+            if self_param:
+                result.append(self_param)
+        
+        return result
 
     def get_parameter_at(self, f, i) -> list[str]:
         """
@@ -584,6 +591,27 @@ class FnOGraph(Graph):
             ''', initNs=Prefix.NAMESPACES)
         ]
         return result[0] if len(result) > 0 else Any
+    
+    def get_outputs(self, f):
+        """
+        Retrieve the outputs of a function
+        
+        Args:
+            f (URIRef): the function to get the outputs from
+        
+        Returns:
+            return (List[URIRef]): List of outputs
+        """
+        return [
+            x['out'] for x in self.query(f"""
+                SELECT ?out WHERE {{
+                    <{f}> fno:returns ?outs .
+                    ?outs ?index ?out .
+                }}""", initNs=Prefix.NAMESPACES)
+        ]
+        
+    
+    ### COMPOSITION ###
      
     def has_composition(self, f):
          result = self.query(f'''
@@ -653,7 +681,7 @@ class FnOGraph(Graph):
             SELECT ?mapfrom ?mapto ?priority WHERE {{
                 <{c}> fnoc:composedOf ?mapping .
                 ?mapping fnoc:mapFrom | fnoc:mapFromTerm ?mapfrom ;
-                         fnoc:mapTo | fnoc:mapToVariable ?mapto .
+                         fnoc:mapTo ?mapto .
                 
                 OPTIONAL {{
                     ?mapping fnoc:priority ?priority
@@ -726,7 +754,46 @@ class FnOGraph(Graph):
         elif len(result) == 1:
             return result[0]
         return None, None
-          
+    
+    def unmapped_parameters(self, comp_uri, fun_uri):
+        """
+        Return a list of parameters for a given function that are not mapped in the composition
+        """
+        parameters = self.get_parameters(fun_uri, include_self=True)
+        
+        mapped = [
+            x['par'] for x in self.query(f"""
+                SELECT ?par WHERE {{
+                    <{comp_uri}> fnoc:composedOf ?mapping .
+                    ?mapping fnoc:mapto ?endpoint .
+                    ?endpoint fnoc:consituentFunction <{fun_uri}> ;
+                        fnoc:functionParameter ?par .
+            }}""", initNs=Prefix.NAMESPACES)
+        ]
+        
+        return [param for param in parameters if param not in mapped]
+    
+    ### TERMS ###
+    
+    def is_list(self, seq):
+        result = self.query(f"""
+            ASK WHERE {{
+                ?seq a rdf:Seq .
+            }}""", initNs=Prefix.NAMESPACES, initBindings={'seq': seq})
+        
+        return True if result else False
+    
+    def to_list(self, seq):
+        result = [
+            (x['index'], x['term']) for x in self.query(f"""
+                SELECT ?index ?term WHERE {{
+                    ?seq a rdf:Seq ;
+                        ?index ?term .
+                }}""", initNs=Prefix.NAMESPACES, initBindings={'seq': seq})
+        ]
+        
+        return [ term[1] for term in sorted(result, key=lambda x: x[0]) if term[0] != Prefix.ns('rdf').type ]
+    
     ### PARAMETER MAPPING ###
     
     def get_mapping(self, f, first=False):
@@ -742,7 +809,7 @@ class FnOGraph(Graph):
         
         return result[0] if first else result
      
-    def get_positional(self, mapping):
+    def get_positionals(self, mapping):
           """
           Get positional parameters of a function.
 
@@ -768,30 +835,132 @@ class FnOGraph(Graph):
           except ParseException as e:
                print(f"Error while parsing query when fetching positional parameters for <{get_name(mapping)}>: <{e}>")
                return []
+    
+    def parameter_position(self, mapping, param):
+        """
+        Retrieve the mapped index for a given parameter
+        
+        Args:
+            mapping (URIRef): The mapping that defines the index
+            param (URIRef): The parameter to get the index from
+            
+        Returns:
+            return (int | None): The mapped index or None if no PositionParameterMapping is defined
+        """
+        try:
+            result = [
+                (x['index'].value)
+                for x in self.query(f'''
+                    SELECT ?index WHERE {{
+                        <{mapping}> fno:parameterMapping ?posmapping .
+                        ?posmapping fnom:functionParameter <{param}> ;
+                                fnom:implementationParameterPosition ?index .
+                    }}''', initNs=Prefix.NAMESPACES)
+            ]
+            
+            if len(result) == 1:
+                return result[0]
+            if len(result) == 0:
+                return None
+            
+            raise Exception(f"Multiple indices mapped with in mapping {mapping} for parameter {param}: {result}")
+        except ParseException as e:
+            print(f"Error while parsing query when fetching keyword parameters for <{get_name(mapping)}>: <{e}>")
+            return None
 
-    def get_keyword(self, mapping):
-          """
-          Get keyword parameters of a function.
+    def get_keywords(self, mapping):
+        """
+        Get keyword parameters of a function.
 
-          Args:
-               f (str): The URI of the function.
+        Args:
+            f (str): The URI of the function.
 
-          Returns:
-               list: A list of keyword parameters.
-          """
-          try:
-               return [
-                    x['param']
-                    for x in self.query(f'''
-                         SELECT ?param WHERE {{
-                              <{mapping}> fno:parameterMapping ?keymapping .
-                              ?keymapping fnom:functionParameter ?param ;
-                                        fnom:implementationProperty ?property .
-                         }}''', initNs=Prefix.NAMESPACES)
-               ]
-          except ParseException as e:
-               print(f"Error while parsing query when fetching keyword parameters for <{get_name(mapping)}>: <{e}>")
-               return []
+        Returns:
+            list: A list of keyword parameters.
+        """
+        try:
+            return {
+                x['property'].value: x['param']
+                for x in self.query(f'''
+                        SELECT ?param ?property WHERE {{
+                            <{mapping}> fno:parameterMapping ?keymapping .
+                            ?keymapping fnom:functionParameter ?param ;
+                                    fnom:implementationProperty ?property .
+                        }}''', initNs=Prefix.NAMESPACES)
+            }
+        except ParseException as e:
+            print(f"Error while parsing query when fetching keyword parameters for <{get_name(mapping)}>: <{e}>")
+            return {}
+    
+    def get_keyword(self, mapping, key):
+        """
+        Get parameter based on a key for an FnO mapping.
+
+        Args:
+            mapping (URIRef): The FnO Mapping
+            key (str): The key used in the mapping
+        Returns:
+            URIRef: The FnO Parameter mapped with the key
+        """
+        try:
+            result = [ x['param'] for x in self.query(f'''
+                SELECT ?param ?property WHERE {{
+                    <{mapping}> fno:parameterMapping ?keymapping .
+                    ?keymapping fnom:functionParameter ?param ;
+                            fnom:implementationProperty {Literal(key).n3()} .
+                }}''', initNs=Prefix.NAMESPACES)
+            ]
+            
+            if len(result) == 1:
+                return result[0]
+            if len(result) == 0:
+                raise Exception(f"No parameter mapped with key '{key}' in mapping {mapping}.")
+            if len(result) > 1:
+                raise Exception(f"Multiple parameters mapped with key '{key}' in mapping {mapping}: {result}")
+        except ParseException as e:
+            print(f"Error while parsing query when fetching keyword parameters for <{get_name(mapping)}>: <{e}>")
+            return {}
+    
+    def parameter_keyword(self, mapping, param):
+        """
+        Retrieve the mapped key for a given parameter
+        
+        Args:
+            mapping (URIRef): The mapping that defines the index
+            param (URIRef): The parameter to get the index from
+            
+        Returns:
+            return (str | None): The mapped key or None if no PropertyParameterMapping is defined
+        """
+        result = [
+            (x['key'].value)
+            for x in self.query(f'''
+                SELECT ?key WHERE {{
+                    <{mapping}> fno:parameterMapping ?keymapping .
+                    ?keymapping fnom:functionParameter <{param}> ;
+                            fnom:implementationProperty ?key .
+                }}''', initNs=Prefix.NAMESPACES)
+        ]
+        
+        if len(result) == 1:
+            return result[0]
+        if len(result) == 0:
+            return None
+        
+        raise Exception(f"Multiple keys mapped in mapping {mapping} for parameter {param}: {result}")
+    
+    def is_list_mapping(self, mapping, param):
+        try:
+            result = self.query(f'''
+                ASK WHERE {{
+                    <{mapping}> fno:parameterMapping ?varmapping .
+                    ?varmapping a fnom:ListMapping ;
+                            fnom:functionParameter <{param}> .
+                }}''', initNs=Prefix.NAMESPACES)
+            return True if result else False
+        except ParseException as e:
+            print(f"Error while parsing query when fetching variable positional parameters for <{get_name(mapping)}>: <{e}>")
+            return None
 
     def get_varpositional(self, mapping):
           """
@@ -809,7 +978,7 @@ class FnOGraph(Graph):
                     for x in self.query(f'''
                          SELECT ?property ?param WHERE {{
                               <{mapping}> fno:parameterMapping ?varmapping .
-                              ?varmapping a fnom:IndexMapping ;
+                              ?varmapping a fnom:ListMapping ;
                                         fnom:functionParameter ?param .
                          }}''', initNs=Prefix.NAMESPACES)
                ]
@@ -833,7 +1002,7 @@ class FnOGraph(Graph):
                result = self.query(f'''
                               ASK WHERE {{
                                    <{mapping}> fno:parameterMapping ?varmapping .
-                                   ?varmapping a fnom:IndexMapping ;
+                                   ?varmapping a fnom:ListMapping ;
                                              fnom:functionParameter <{param}> .
                               }}''', initNs=Prefix.NAMESPACES)
                return True if result else False
@@ -1215,7 +1384,7 @@ class FnOGraph(Graph):
             x['mapping'] for x in self.query(f'''
                 SELECT ?mapping WHERE {{
                     ?mapping fno:function <{fun}> ;
-                                fno:implementation <{imp}> .
+                             fno:implementation <{imp}> .
                 }}''', initNs=Prefix.NAMESPACES)
         ]
         return result

@@ -29,6 +29,10 @@ class FnOBuilder():
         g.add((call, Prefix.ns('fnoc')["applies"], f))
     
     @staticmethod
+    def represents(g: FnOGraph, comp, fun):
+        g.add((comp, Prefix.ns('fnoc').represents, fun))
+    
+    @staticmethod
     def link(g: FnOGraph, call1, pred, call2):
         if call1 is not None and call2 is not None:
             g.add((call1, Prefix.ns('fnoc')[pred], call2))
@@ -56,57 +60,60 @@ class FnOBuilder():
         
         g.add((comp_uri, RDF.type, Prefix.ns('fno')["Composition"]))
         if represents:
-            g.add((comp_uri, Prefix.ns('fnoc')["represents"], represents))
+            FnOBuilder.represents(g, comp_uri, represents)
+        
+        for mapping in mappings:
+            FnOBuilder.add_mapping(g, comp_uri, mapping)
+            
+        return comp_uri
+    
+    @staticmethod
+    def add_mapping(g: FnOGraph, comp_uri, mapping):
+        mapping_node = BNode()
+        
+        mapfrom = mapping.mapfrom
+        mapto = mapping.mapto
 
-        # initiate the mapping nodes
-        mapping_nodes = [BNode() for i in range(len(mappings))]
-
-        for mapping, mapping_node in zip(mappings, mapping_nodes):
-            mapfrom = mapping.mapfrom
-            mapto = mapping.mapto
-
-            g.add((comp_uri, Prefix.ns('fnoc')["composedOf"], mapping_node))
-            if mapping.priority:
-                g.add((mapping_node, Prefix.ns('fnoc')["priority"], mapping.priority))
-                
-            if mapfrom.from_term():
-                # map from term
-                term = mapfrom.get_value()
-                g.add((mapping_node, Prefix.ns('fnoc')["mapFromTerm"], term))
-            else:
-                # map from function
-                bnode = BNode()
-
-                triples = [
-                    (mapping_node, Prefix.ns('fnoc')["mapFrom"], bnode),
-                    (bnode, Prefix.ns('fnoc')["constituentFunction"], mapfrom.context),
-                    (bnode, Prefix.ns('fnoc')["functionOutput" if mapfrom.is_output() else "functionParameter"], mapfrom.get_value())
-                ]
-                        
-                # map from strategy
-                if mapfrom.has_map_strategy():
-                    triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')[mapfrom.strategy]))
-                    triples.append((bnode, Prefix.ns('fnoc')["key"], Literal(mapfrom.key)))
-
-                [ g.add(x) for x in triples ]
-                    
-            # map to function
+        g.add((comp_uri, Prefix.ns('fnoc')["composedOf"], mapping_node))
+        if mapping.priority:
+            g.add((mapping_node, Prefix.ns('fnoc')["priority"], mapping.priority))
+            
+        if mapfrom.from_term():
+            # map from term
+            term = mapfrom.get_value()
+            g.add((mapping_node, Prefix.ns('fnoc')["mapFromTerm"], term))
+        else:
+            # map from function
             bnode = BNode()
 
             triples = [
-                (mapping_node, Prefix.ns('fnoc')["mapTo"], bnode),
-                (bnode, Prefix.ns('fnoc')["constituentFunction"], mapto.context),
-                (bnode, Prefix.ns('fnoc')["functionOutput" if mapto.is_output() else "functionParameter"], mapto.get_value())
+                (mapping_node, Prefix.ns('fnoc')["mapFrom"], bnode),
+                (bnode, Prefix.ns('fnoc')["constituentFunction"], mapfrom.context),
+                (bnode, Prefix.ns('fnoc')["functionOutput" if mapfrom.is_output() else "functionParameter"], mapfrom.get_value())
             ]
-
-            # map to strategy
-            if mapto.has_map_strategy():
-                triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')[mapto.strategy]))
-                triples.append((bnode, Prefix.ns('fnoc')["key"], Literal(mapto.key)))
+                    
+            # map from strategy
+            if mapfrom.has_map_strategy():
+                triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')[mapfrom.strategy]))
+                triples.append((bnode, Prefix.ns('fnoc')["key"], Literal(mapfrom.key)))
 
             [ g.add(x) for x in triples ]
-            
-        return comp_uri
+                
+        # map to function
+        bnode = BNode()
+
+        triples = [
+            (mapping_node, Prefix.ns('fnoc')["mapTo"], bnode),
+            (bnode, Prefix.ns('fnoc')["constituentFunction"], mapto.context),
+            (bnode, Prefix.ns('fnoc')["functionOutput" if mapto.is_output() else "functionParameter"], mapto.get_value())
+        ]
+
+        # map to strategy
+        if mapto.has_map_strategy():
+            triples.append((bnode, Prefix.ns('fnoc')["mappingStrategy"], Prefix.ns('fnoc')[mapto.strategy]))
+            triples.append((bnode, Prefix.ns('fnoc')["key"], Literal(mapto.key)))
+
+        [ g.add(x) for x in triples ]
         
     @staticmethod
     def describe_function(g: FnOGraph, 
@@ -273,7 +280,7 @@ class FnOBuilder():
         if self_output is not None:
             triples.extend([
                 (s, Prefix.ns('fno')['returnMapping'], selfNode),
-                (selfNode, RDF.type, Prefix.ns('fnom')['ValueReturnMapping']),
+                (selfNode, RDF.type, Prefix.ns('fnom')['ContextReturnMapping']),
                 (selfNode, Prefix.ns('fnom')['functionOutput'], self_output)
             ])
 
@@ -290,7 +297,7 @@ class FnOBuilder():
             ])
             
             if param in args:
-                triples.append((paramNode, RDF.type, Prefix.ns('fnom')['IndexMapping']))
+                triples.append((paramNode, RDF.type, Prefix.ns('fnom')['ListMapping']))
                 args.remove(param)
             if param in kargs:
                 triples.append((paramNode, RDF.type, Prefix.ns('fnom')['KeyValueMapping']))
@@ -302,7 +309,6 @@ class FnOBuilder():
                 triples.append((param, Prefix.ns('fno')["required"], Literal(True)))
 
         ### PROPERTY PARAMETER MAPPING ###
-        
         for (param, key) in keyword:
             paramNode = BNode()
 
@@ -331,14 +337,14 @@ class FnOBuilder():
                 (defaultNode, Prefix.ns('fnom')['defaultValue'], default),
             ])
         
-        ### INDEX PARAMETER MAPPING ###
+        ### LIST PARAMETER MAPPING ###
         
         if len(args) == 1:
             arg = args.pop()
             argNode = BNode()
             triples.extend([
                 (s, Prefix.ns('fno')['parameterMapping'], argNode),
-                (argNode, RDF.type, Prefix.ns('fnom')['IndexMapping']),
+                (argNode, RDF.type, Prefix.ns('fnom')['ListMapping']),
                 (argNode, Prefix.ns('fnom')['functionParameter'], arg)
             ])
         elif len(args) > 1:

@@ -1,21 +1,6 @@
 digraph cluster_ {
 	graph [label=_]
-	3 [label="#3
-DATA_PATH = 'dataset/Training.csv'
-data = read_csv(DATA_PATH).dropna(axis=1)
-encoder = LabelEncoder()
-data['prognosis'] = encoder.fit_transform(data['prognosis'])
-X = data.iloc[:, :-1]
-y = data.iloc[:, -1]
-svm_model = SVC()
-svm_model.fit(X, y)
-nb_model = GaussianNB()
-nb_model.fit(X, y)
-rf_model = RandomForestClassifier(random_state=18)
-rf_model.fit(X, y)
-dump(encoder, 'models/encoder.pkl')
-dump(svm_model, 'models/svm_model.pkl')
-dump(nb_model, 'models/nb_model.pkl')
-dump(rf_model, 'models/rf_model.pkl')
+	6 [label="#6
+main(data_path, output_dir)
 "]
 }

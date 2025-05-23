@@ -5,8 +5,8 @@ from ...builders import DockerBuilder, ProvBuilder, FnOBuilder
 from ...mappers import DockerMapper, PythonMapper
 from ...util.file import move_file
 from ...util.mapping import Mapping, MappingNode
-from ...descriptors import FileDescriptor
-from ..executeable import Function
+from ...descriptors import FileDescriptor, CLIDescriptor
+from ...model.function import Function
 from ..std import Executer
 
 import os, subprocess, docker
@@ -116,8 +116,81 @@ class DockerfileExecutor(Executer):
         # Image was derived from Dockerfile
         ProvBuilder.derivedFrom(self.pg, self.imp_uri, fun.imp)
         
-        # TODO implement command descriptor
-        if self.entrypoint_cmd and self.entrypoint_cmd.startswith("python"):
+        try:
+            cmdstr = self.entrypoint_cmd + ' ' + ' '.join(self.entrypoint_params)
+            fun_uri, comp_uri = CLIDescriptor(self.pg).describe(cmdstr)
+            
+            # Create a new function based on the entrypoint cmd
+            # Copy the unmapped parameters
+            param_uris = {}
+            params = self.pg.unmapped_parameters(comp_uri, fun_uri)
+            for i, param in enumerate(params):
+                uri = Prefix.base()[f'{self.image_name}Parameter{i}']
+                FnOBuilder.describe_parameter(self.pg, uri, 
+                                              Prefix.ns('xsd').string, 
+                                              self.pg.get_predicate(param))
+                param_uris[param] = (uri)
+                
+                mapping = Mapping(MappingNode().set_function_out(self.fun_uri, uri), MappingNode.set_function_out(fun_uri, param))
+                FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
+            
+            # Copy the outputs and map them accordingly
+            output_uris = []
+            output = self.pg.get_output(fun_uri)
+            uri = Prefix.base()[f'{self.image_name}Output']
+            FnOBuilder.describe_output(self.pg, uri, self.pg.get_output_type(output), self.pg.get_predicate(output))
+            output_uris.append(uri)
+            
+            mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode.set_function_out(self.fun_uri, uri))
+            FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
+            
+            if self.pg.has_self_output(fun_uri):
+                output = self.pg.get_self_output(fun_uri)
+                uri = Prefix.base()[f'{self.image_name}SelfOutput']
+                FnOBuilder.describe_output(self.pg, uri, self.pg.get_output_type(output), self.pg.get_predicate(output))
+                output_uris.append(uri)
+                
+                mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode.set_function_out(self.fun_uri, uri))
+                FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
+            
+            # Create FnO Function
+            FnOBuilder.describe_function(self.pg, self.fun_uri, self.image_name, param_uris.values(), output_uris)
+            
+            # Copy the mapping 
+            # TODO with new default values based on cmd
+            for map_uri in self.pg.get_mapping(fun_uri):
+                positional = []
+                keywords = []
+                
+                for param in params:
+                    index = self.pg.parameter_position(map_uri, param)
+                    if index:
+                        positional.append((index, param_uris[param]))
+                    
+                    key = self.pg.parameter_key(map_uri, param)
+                    if key:
+                        keywords.append((param_uris[param], key))
+                
+                positional = [ param[1] for param in sorted(positional, key=lambda x: x[0]) ]
+                        
+                FnOBuilder.describe_mapping(self.pg, self.fun_uri, self.imp_uri, "docker run", 
+                                            output_uris[0], positional, keywords,
+                                            self_output=output_uris[1] if len(output_uris) > 1 else None)
+            
+            # Docker image is a specialization of its entrypoint
+            for _, imp_uri in self.pg.fun_to_imp(fun_uri):
+                ProvBuilder.specialiazitionOf(self.pg, self.imp_uri, imp_uri)
+            
+        except ValueError:
+            # entrypoint cannot be represented using FnO
+            pass
+        
+        
+        
+        
+        
+        
+        """if self.entrypoint_cmd and self.entrypoint_cmd.startswith("python"):
             # Look for the correct python implementation
             try:
                 # Now just take the first implementation
@@ -206,7 +279,7 @@ class DockerfileExecutor(Executer):
                 FnOBuilder.start(self.pg, comp_uri, rep.fun_uri)
                 
             except IndexError as e:
-                print(f"[ERROR] No Python implementation found for {file}")
+                print(f"[ERROR] No Python implementation found for {file}")"""
                 
         return self.pg, exe_uri
     
@@ -226,7 +299,7 @@ class DockerfileExecutor(Executer):
         copied_uris = set()
         for file in self.iterate_files():
             try:
-                self.fileDescriptor.describe_resource(os.path.join(os.getcwd(), file))
+                self.fileDescriptor.describe(os.path.join(os.getcwd(), file))
             except ValueError as e:
                 pass
             
@@ -250,7 +323,6 @@ class DockerfileExecutor(Executer):
     def execute_entrypoint(self, fun: Function, *args, **kwargs):
         self.entrypoint_cmd = fun[Prefix.do().entrypointInputCommand].get()
         self.entrypoint_params = fun[Prefix.do().entrypointInputParamList].to_list()
-        self.entrypoint_params = [word for string in self.entrypoint_params for word in string.split(' ')]
     
     def execute_cmd(self, fun: Function, *args, **kwargs):
         value = fun[Prefix.do().cmdInputParamList].to_list()
@@ -286,59 +358,3 @@ class DockerfileExecutor(Executer):
                 file_path = os.path.relpath(os.path.join(root, file), '.')
                 if not self.ignore or not self.ignore.match_file(file_path):
                     yield file_path
-    
-    """if len(self.entrypoint_params) > 1:
-                    i = 1
-                    while i < len(self.entrypoint_params):
-                        param = self.entrypoint_params[i]
-                        if param.startswith('-'):
-                            key = param.lstrip('-')
-                            if key in rep_keywords:
-                                terminal = rep_keywords[key]
-                                if terminal.param_mapping.index:
-                                    k = i
-                                    while k < len(self.entrypoint_params) and not self.entrypoint_params[k+1].startwith('-'):
-                                        value = self.entrypoint_params[k+1]
-                                        mapfrom = MappingNode().set_constant(self.entrypoint_params[k])
-                                        mapto = MappingNode().set_function_par(rep.fun_uri, terminal.uri).set_strategy('toList', k-i-1)
-                                        mappings.append(Mapping(mapfrom, mapto))
-                                        k += 1
-                                    i = k
-                                else:
-                                    mapfrom = MappingNode().set_constant(self.entrypoint_params[i+1])
-                                    mapto = MappingNode().set_function_par(rep.fun_uri, terminal.uri)
-                                    mappings.append(Mapping(mapfrom, mapto))
-                                    i += 1
-                                
-                                # Container function does not need this parameter
-                                del keywords[key]
-                            else:
-                                # TODO variable keyword
-                                pass
-                        else:
-                            try:
-                                terminal = next(positional)
-                                if terminal.param_mapping.index:
-                                    k = i+1
-                                    value = self.entrypoint_params[k]
-                                    while k < len(self.entrypoint_params) and not value.startwith('-'):
-                                        mapfrom = MappingNode().set_constant(self.entrypoint_params[k])
-                                        mapto = MappingNode().set_function_par(rep.fun_uri, terminal.uri).set_strategy('toList', k-i-1)
-                                        mappings.append(Mapping(mapfrom, mapto))
-                                        k += 1
-                                    i = k
-                                else:
-                                    mapfrom = MappingNode().set_constant(self.entrypoint_params[i+1])
-                                    mapto = MappingNode().set_function_par(rep.fun_uri, terminal.uri)
-                                    mappings.append(Mapping(mapfrom, mapto))
-                                    i += 1
-                            except StopIteration as e:
-                                k = i+1
-                                value = self.entrypoint_params[k]
-                                while k < len(self.entrypoint_params) and not value.startwith('-'):
-                                    mapfrom = MappingNode().set_constant(self.entrypoint_params[k])
-                                    mapto = MappingNode().set_function_par(rep.fun_uri, rep_varpos.uri).set_strategy('toList', k-i-1)
-                                    mappings.append(Mapping(mapfrom, mapto))
-                                    k += 1
-                                i = k
-                        i += 1"""

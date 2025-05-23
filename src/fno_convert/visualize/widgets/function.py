@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, Qt
 from ...prefix import Prefix
 from ...graph import FnOGraph
-from ...executors.executeable import Function, AppliedFunction
+from ...model.function import Function, AppliedFunction
 from .entity import ImplementationWidget, ExecutionWidget
 
 class ImplementationListWidget(QTreeWidget):

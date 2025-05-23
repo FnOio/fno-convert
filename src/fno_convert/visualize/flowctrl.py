@@ -7,8 +7,8 @@ from rdflib import URIRef
 from pyqtgraph import TreeWidget
 import os
 
-from ..executors import Function
-from ..executors.store import Terminal
+from ..model.function import Function
+from ..model.store import Terminal
 from ..executors import PythonExecutor, DockerfileExecutor, DockerImageExecutor, DockerContainerExecuter
 from ..util.prov import ProvLogger
 from ..graph import FnOGraph

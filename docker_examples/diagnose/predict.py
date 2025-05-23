@@ -34,9 +34,8 @@ def predictDisease(symptoms, data_dict, rf_model, nb_model, svm_model):
     }
     return predictions
 
-def symptom_index():
-  DATA_PATH = "dataset/Training.csv"
-  data = read_csv(DATA_PATH).dropna(axis = 1)
+def symptom_index(data_path):
+  data = read_csv(data_path).dropna(axis = 1)
   symptom_labels = data.iloc[:,:-1].columns.values
 
   # Creating a symptom index dictionary to encode the
@@ -58,6 +57,9 @@ if __name__ == "__main__":
 
   # Add the argument for a list of strings
   parser.add_argument('symptoms', nargs='+', help='A list of symptoms')
+  
+  # Keyword argument for the data path
+  parser.add_argument('--data-path', required=True, help='Path to the training data (for symptom index)')
 
   # Parse the arguments
   args = parser.parse_args()
@@ -68,7 +70,7 @@ if __name__ == "__main__":
   final_svm_model = joblib.load("models/svm_model.pkl")
 
   data_dict = {
-      "symptom_index":symptom_index(),
+      "symptom_index":symptom_index(args.data_path),
       "predictions_classes":encoder.classes_
   }
   

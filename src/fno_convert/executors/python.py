@@ -1,6 +1,6 @@
-from .executeable import Function, AppliedFunction
+from ..model.function import Function
 from .std import Executer
-from .store import MappingType
+from ..model.store import MappingType
 from ..graph import FnOGraph
 from ..prefix import Prefix
 from ..util.python.script import CallableScript
@@ -128,10 +128,10 @@ class PythonExecutor(Executer):
         # Set input and output based on arguments
         for param in fun.inputs():
             mapping = param.param_mapping
-            if mapping.get_type() == MappingType.KEYWORD:
+            if mapping.is_type(MappingType.KEYWORD):
                 if mapping.get_property() in _keyargs:
                     param.set(_keyargs[mapping.get_property()])
-            elif mapping.get_type() == MappingType.POSITIONAL:
+            elif mapping.is_type(MappingType.POSITIONAL):
                 if mapping.get_property() < len(_args):
                     param.set(_args[mapping.get_property()])
         
@@ -163,14 +163,14 @@ class PythonExecutor(Executer):
                         param.set(mapping.default)
                 value = param.get()                    
 
-                if mapping.get_type() == MappingType.VARPOSITIONAL:
+                if mapping.is_type(MappingType.LIST):
                     vargs = value
-                elif mapping.get_type() == MappingType.VARKEYWORD:
+                elif mapping.is_type(MappingType.KEYVALUE):
                     if isinstance(value, dict):
                         vkeyargs = value
-                elif mapping.get_type() == MappingType.KEYWORD:
+                elif mapping.is_type(MappingType.KEYWORD):
                     keyargs[mapping.get_property()] = value
-                elif mapping.get_type() == MappingType.POSITIONAL:
+                elif mapping.is_type(MappingType.POSITIONAL):
                     args.append((mapping.get_property(), value))
             
             # correctly sort the positional arguments

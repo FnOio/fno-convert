@@ -6,7 +6,8 @@ from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat
 from ..mappers import PythonMapper
 from ..graph import FnOGraph
 from ..util.python.ast import ASTUtil
-from ..descriptors import PythonDescriptor, DockerfileDescriptor
+from ..descriptors.python import PythonDescriptor
+from ..descriptors.docker import DockerfileDescriptor
 from rdflib import URIRef
 
 import os, sys, ast, inspect, time

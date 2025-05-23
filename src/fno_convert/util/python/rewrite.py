@@ -85,21 +85,16 @@ class ASTRewriter(ast.NodeTransformer):
             ret = self.generic_visit(node)
             
             args=[]
-            kwonlyargs=[]
             for arg in self.arguments:
-                if arg["name"].startswith('-'):
-                    name = arg["name"].lstrip('-')
-                    arg_node = ast.arg(arg=name)
-                    kwonlyargs.append(arg_node)
-                else:
-                    name = arg["name"]
-                    arg_node = ast.arg(arg=name)
-                    args.append(arg_node)
+                name = arg["name"].lstrip('-').replace('-', '_')
+                arg_node = ast.arg(arg=name)
+                args.append(arg_node)
 
             # Replace with a function definition
             return ast.FunctionDef(
                 name="_",
-                args=ast.arguments(posonlyargs=[], args=args, kwonlyargs=kwonlyargs, kw_defaults=[], defaults=[]),
+                args=ast.arguments(posonlyargs=[], args=args, vararg=None, 
+                                   kwonlyargs=[], kw_defaults=[], defaults=[]),
                 body=ret.body,
                 decorator_list=[]
             )
@@ -194,7 +189,7 @@ class ASTRewriter(ast.NodeTransformer):
                 if call_node.func.value.id == self.parser:
                     argument['name'] = call_node.args[0].value
                     for option in call_node.keywords:
-                        argument[option.arg] = option.value.s if isinstance(option.value, ast.Str) else option.value.id
+                        argument[option.arg] = option.value.s if isinstance(option.value, ast.Constant) else option.value.id
         return argument
 
     def find_argument_variable(self, node):

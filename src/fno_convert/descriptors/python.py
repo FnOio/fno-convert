@@ -3,7 +3,7 @@ import inspect
 import random
 import traceback
 import ast
-import os, sys
+import os, sys, shlex, hashlib
 
 from operator import (__add__, __and__, __call__, __contains__, __eq__, __floordiv__, __ge__, __getitem__, __gt__, 
                       __iadd__, __iand__, __ifloordiv__, __ilshift__, __imatmul__, __imod__, __imul__, __invert__, 
@@ -27,11 +27,9 @@ from ..util.std_kg import STD_KG
 from ..graph import FnOGraph, get_name
 from ..prefix import Prefix
 from ..mappers import PythonMapper, FileMapper
-from ..descriptors.file import AbstractFileDescriptor
-from .resource import AbstractResourceDescriptor
 from ..executors import PythonExecutor
 
-class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
+class PythonDescriptor:
 
     @staticmethod
     def name_node(name: str):
@@ -66,74 +64,104 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         if not self.state:
             raise RuntimeError("No saved state to restore.")
         self.scope = self.state.pop()
+        
+    def can_describe_cli(self, cmd: str):
+        return cmd.startswith("python")
     
-    def describe_resource(self, resource):
-        try:
-            return self.from_function(resource.__name__, resource.__name__, resource)
-        except Exception as e:
-            print(f"Unable to describe resource {resource} as Python object.")
-            traceback.print_exc()
-            return super().describe_resource(resource)
+    def describe_cli(self, cmd: str):
+        parts = shlex.split(cmd)
+        
+        if len(parts) < 2:
+            raise Exception("No File stated after 'python' command.")
+        
+        fno_rep = self.describe_file(parts[1])
+        fun_uri = fno_rep[0]
+        encoded = hashlib.sha256(cmd.encode()).hexdigest()[:8]
+        comp_uri = Prefix.base()[f"command{encoded}Composition"]
+        
+        print(fno_rep)
+        for map_uri in fno_rep[1]:
+            try:
+                argparse_mappings = PythonMapper.parse_args_with_map(self.g, map_uri, 
+                                                                    parts[2:] if len(parts) >= 2 else [])
+
+                mappings = []
+                for param, value in argparse_mappings.items():
+                    mapfrom = MappingNode().set_constant(value)
+                    mapto = MappingNode().set_function_par(fun_uri, param)
+                    mappings.append(Mapping(mapfrom, mapto))
+                    
+                FnOBuilder.describe_composition(self.g, comp_uri, mappings)
+                FnOBuilder.start(self.g, comp_uri, fun_uri)
+                
+                return fun_uri, comp_uri
+            except:
+                print(f"Unable to create composition for input {parts} with mapping {map_uri}")
+                traceback.print_exc()
+            
+        raise Exception(f"Unable to create composition of command '{cmd}'")
+    
+    def can_describe_object(self, obj):
+        return callable(obj)
+    
+    def describe_object(self, obj):
+        return self.from_function(obj.__name__, obj.__name__, obj)
+    
+    def can_describe_file(self, file_path):
+        return file_path.endswith(".py")
     
     def describe_file(self, file_path):
-        if file_path.endswith(".py"):
-            file_uri = FileMapper.uri(file_path)
-            file_name, suff = os.path.splitext(os.path.basename(file_path))
-            fun_uri = Prefix.base()[f"{file_name}_main"]
-            if not self.g.exists(fun_uri):
-                ### IMPORT ###
-
-                try:
-                    self.importer.import_from_file(file_path)
-                except Exception as e:
-                    print(f"Error importing from {file_path}: {e}")
-                    print(traceback.format_exc())
-                    
-                ### PARSE SOURCE CODE ###
+        file_uri = FileMapper.uri(file_path)
+        file_name, suff = os.path.splitext(os.path.basename(file_path))
+        fun_uri = Prefix.base()[f"{file_name}_main"]
+        if not self.g.exists(fun_uri):
+            ### IMPORT ###
+            try:
+                self.importer.import_from_file(file_path)
+            except Exception as e:
+                print(f"Error importing from {file_path}: {e}")
+                print(traceback.format_exc())
                 
-                with open(file_path, 'r') as file:
-                    source_code = file.read()
-                source_code, args = self.rewriter.rewrite(source_code)
-                
-                # URI
-                comp_uri = URIRef(f"{fun_uri}Composition")
-                
-                # FnO Parameters
-                parameters = []
-                for i, arg in enumerate(args):
-                    uri = URIRef(f"{fun_uri}Parameter{i}")
-                    pred = arg["name"].lstrip('-')
-                    # TODO Type inferrence
-                    type = PythonMapper.any(self.g)
-                    # if "nargs" in arg:
-                    #     type = PythonMapper.obj_to_fno(self.g, List)
-                    FnOBuilder.describe_parameter(self.g, uri, type, pred)
-                    parameters.append(uri)
-                
-                # FnO Output
-                output_uri = URIRef(f"{fun_uri}Output")
-                output_pred = "output"
-                output_type = PythonMapper.any(self.g)
-                FnOBuilder.describe_output(self.g, output_uri, output_type, output_pred)
-                
-                # FnO Function
-                FnOBuilder.describe_function(self.g, fun_uri, f"{file_name}{suff}", parameters, [output_uri])
-                
-                # FnO Implementation
-                PythonBuilder.describe_file(self.g, file_uri, file_path)
-                
-                # FnO Mapping
-                map_uri = PythonMapper.map_with_parse_args(self.g, fun_uri, file_uri, output_uri, args)
-                
-                # FnO Composition
-                self.describe_composition("_", file_path, fun_uri, comp_uri, source_code, alt_name=file_name)
-                
-                return fun_uri, [map_uri], file_uri
+            ### PARSE SOURCE CODE ###
             
-            map_uris = [ map_uri for map_uri in self.g.mappings(fun_uri) if self.executor.accepts(map_uri, file_uri) ]
-            return fun_uri, map_uris, file_uri
-        else:
-            return super().describe_file(file_path)
+            with open(file_path, 'r') as file:
+                source_code = file.read()
+            source_code, args = self.rewriter.rewrite(source_code)
+            
+            # URI
+            comp_uri = URIRef(f"{fun_uri}Composition")
+            
+            # FnO Parameters
+            parameters = []
+            for i, arg in enumerate(args):
+                uri = URIRef(f"{fun_uri}Parameter{i}")
+                pred = arg["name"].lstrip('-').replace('-', '_')
+                type = Prefix.ns('xsd').string
+                FnOBuilder.describe_parameter(self.g, uri, type, pred)
+                parameters.append(uri)
+            
+            # FnO Output
+            output_uri = URIRef(f"{fun_uri}Output")
+            output_pred = "output"
+            output_type = PythonMapper.any(self.g)
+            FnOBuilder.describe_output(self.g, output_uri, output_type, output_pred)
+            
+            # FnO Function
+            FnOBuilder.describe_function(self.g, fun_uri, f"{file_name}{suff}", parameters, [output_uri])
+        
+            # FnO Implementation
+            PythonBuilder.describe_file(self.g, file_uri, file_path)
+        
+            # FnO Mapping
+            map_uri = PythonMapper.map_with_parse_args(self.g, fun_uri, file_uri, output_uri, args)
+            
+            # FnO Composition
+            self.describe_composition("_", file_path, fun_uri, comp_uri, source_code, alt_name=file_name)
+            
+            return fun_uri, [map_uri], file_uri
+        
+        map_uris = self.g.mappings(fun_uri, file_uri)
+        return fun_uri, map_uris, file_uri
 
     def from_function(self, name, context, obj, num=0, keywords=[]):
         
@@ -653,7 +681,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
                     
                     # call on attr
                     mapping = self.g.get_mapping(fun_uri, first=True)
-                    positional = self.g.get_positional(mapping)
+                    positional = self.g.get_positionals(mapping)
                     varpos = self.g.get_varpositional(mapping)
                     varkey = self.g.get_varkeyword(mapping)
                     
@@ -799,7 +827,7 @@ class PythonDescriptor(AbstractResourceDescriptor, AbstractFileDescriptor):
         # TODO what if multiple mappings are present?
         # TODO store the created mapping and imp if a function is made to avoid ambiguity
         mapping = self.g.get_mapping(f, first=True)
-        positional = self.g.get_positional(mapping)
+        positional = self.g.get_positionals(mapping)
         varpos = self.g.get_varpositional(mapping)
         varkey = self.g.get_varkeyword(mapping)
 

@@ -4,7 +4,7 @@ import json
 from fno_convert.descriptors import ResourceDescriptor
 from fno_convert.graph import FnOGraph
 from fno_convert.executors.docker import DockerfileExecutor
-from fno_convert.executors.executeable import Function
+from fno_convert.model.function import Function
 from fno_convert.elk import elk_layout
 
 DD_DOCKERFILE = "docker_examples/data-driven/Dockerfile"

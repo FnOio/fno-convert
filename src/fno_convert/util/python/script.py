@@ -6,6 +6,11 @@ class CallableScript:
     self.file = file
   
   def __call__(self, *args, **kwds):
-    # TODO *args & **kwargs
-    subprocess.run(['python3', self.file])
+    cmd = ['python3', self.file, *args ]
+    
+    for key, value in kwds.items():
+      cmd.append(f'--{key}' if len(key) > 1 else f'-{key}')
+      cmd.append(value)
+    
+    subprocess.run(cmd)
     return

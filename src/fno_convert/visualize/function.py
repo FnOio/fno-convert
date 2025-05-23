@@ -3,7 +3,7 @@ from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtWidgets import QGraphicsTextItem, QMenu
 from pyqtgraph import GraphicsObject
 
-from ..executors.executeable import Function
+from ..model.function import Function
 from .store import StoreGraphicsItem
 from .mapping import MappingGraphicsItem, ControlMappingGraphicsItem
 from .colors import STD_COLOR

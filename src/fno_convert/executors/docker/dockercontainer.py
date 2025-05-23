@@ -1,5 +1,5 @@
 from ..std import Executer
-from ..executeable import Function
+from ...model.function import Function
 from ...prefix import Prefix
 
 import docker

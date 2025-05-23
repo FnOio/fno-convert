@@ -3,7 +3,7 @@ from PyQt6.QtCore import QRectF, Qt, QPoint, pyqtSignal
 from PyQt6.QtGui import QColor, QPen, QBrush
 from pyqtgraph import GraphicsObject
 
-from ..executors.store import Terminal
+from ..model.store import Terminal
 from .colors import *
 
 class StoreGraphicsItem(GraphicsObject):

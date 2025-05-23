@@ -12,7 +12,7 @@ RUN find . -type f -exec chmod 0744 {} \;
 
 # Train and save the models
 RUN pip install -r requirements.txt
-RUN python3 train.py
+RUN python3 train.py --data-path dataset/Training.csv --output-dir models
 
 # run the command on container startup
-ENTRYPOINT [ "python3", "predict.py" ]
+ENTRYPOINT [ "python3", "predict.py", "--data-path", "dataset/Training.csv" ]

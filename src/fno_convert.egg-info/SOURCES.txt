@@ -3,11 +3,13 @@ MANIFEST.in
 README.md
 setup.py
 src/fno_convert/__init__.py
+src/fno_convert/cli.py
 src/fno_convert/graph.py
 src/fno_convert/prefix.py
 src/fno_convert.egg-info/PKG-INFO
 src/fno_convert.egg-info/SOURCES.txt
 src/fno_convert.egg-info/dependency_links.txt
+src/fno_convert.egg-info/entry_points.txt
 src/fno_convert.egg-info/top_level.txt
 src/fno_convert/builders/__init__.py
 src/fno_convert/builders/docker.py
@@ -16,6 +18,7 @@ src/fno_convert/builders/ldes.py
 src/fno_convert/builders/provo.py
 src/fno_convert/builders/python.py
 src/fno_convert/descriptors/__init__.py
+src/fno_convert/descriptors/command.py
 src/fno_convert/descriptors/docker.py
 src/fno_convert/descriptors/file.py
 src/fno_convert/descriptors/python.py
@@ -26,10 +29,8 @@ src/fno_convert/elk/package-lock.json
 src/fno_convert/elk/package.json
 src/fno_convert/executors/__init__.py
 src/fno_convert/executors/command.py
-src/fno_convert/executors/executeable.py
 src/fno_convert/executors/python.py
 src/fno_convert/executors/std.py
-src/fno_convert/executors/store.py
 src/fno_convert/executors/docker/__init__.py
 src/fno_convert/executors/docker/dockercontainer.py
 src/fno_convert/executors/docker/dockerfile.py
@@ -42,6 +43,10 @@ src/fno_convert/mappers/__init__.py
 src/fno_convert/mappers/docker.py
 src/fno_convert/mappers/file.py
 src/fno_convert/mappers/python.py
+src/fno_convert/model/__init__.py
+src/fno_convert/model/composition.py
+src/fno_convert/model/function.py
+src/fno_convert/model/store.py
 src/fno_convert/util/__init__.py
 src/fno_convert/util/mapping.py
 src/fno_convert/util/prov.py
@@ -49,6 +54,7 @@ src/fno_convert/util/std_kg.py
 src/fno_convert/util/file/__init__.py
 src/fno_convert/util/python/__init__.py
 src/fno_convert/util/python/ast.py
+src/fno_convert/util/python/cfg.py
 src/fno_convert/util/python/importer.py
 src/fno_convert/util/python/rewrite.py
 src/fno_convert/util/python/scope.py
@@ -62,3 +68,8 @@ src/fno_convert/visualize/load.py
 src/fno_convert/visualize/mapping.py
 src/fno_convert/visualize/store.py
 src/fno_convert/visualize/variable.py
+src/fno_convert/visualize/widgets/__init__.py
+src/fno_convert/visualize/widgets/entity.py
+src/fno_convert/visualize/widgets/function.py
+src/fno_convert/visualize/widgets/terminal.py
+src/fno_convert/visualize/widgets/util.py

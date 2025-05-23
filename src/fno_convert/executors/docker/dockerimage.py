@@ -1,7 +1,7 @@
 from ..std import Executer
 from ...mappers import DockerMapper
 from ...builders import ProvBuilder, FnOBuilder
-from ..executeable import Function
+from ...model.function import Function
 from ...prefix import Prefix
 
 import docker, os

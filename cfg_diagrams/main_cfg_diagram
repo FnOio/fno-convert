@@ -1,9 +1,22 @@
 digraph clustermain {
 	graph [label=main]
 	3 [label="#3
-app = QApplication(sys.argv)
-window = PY2RDFWindow()
-window.show()
-sys.exit(app.exec())
+output_dir = Path(output_dir)
+output_dir.mkdir(parents=True, exist_ok=True)
+data = read_csv(data_path).dropna(axis=1)
+encoder = LabelEncoder()
+data['prognosis'] = encoder.fit_transform(data['prognosis'])
+X = data.iloc[:, :-1]
+y = data.iloc[:, -1]
+svm_model = SVC()
+svm_model.fit(X, y)
+nb_model = GaussianNB()
+nb_model.fit(X, y)
+rf_model = RandomForestClassifier(random_state=18)
+rf_model.fit(X, y)
+dump(encoder, f'{output_dir}/encoder.pkl')
+dump(svm_model, f'{output_dir}/svm_model.pkl')
+dump(nb_model, f'{output_dir}/nb_model.pkl')
+dump(rf_model, f'{output_dir}/rf_model.pkl')
 "]
 }

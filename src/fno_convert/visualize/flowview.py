@@ -4,8 +4,8 @@ from PyQt6.QtCore import Qt
 
 from pyqtgraph import GraphicsView, ViewBox
 
-from ..executors.store import Mapping, ValueStore
-from ..executors.executeable import Function
+from ..model.store import Mapping, ValueStore
+from ..model.function import Function
 from ..graph import FnOGraph
 from .function import FunctionGraphicsItem
 from .store import StoreGraphicsItem

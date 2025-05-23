@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget,  QHBoxLayout, QSplitter)
 from PyQt6.QtCore import Qt
 from ...graph import FnOGraph
-from ...executors.store import Terminal
+from ...model.store import Terminal
 from .entity import ProvenanceTreeWidget
 from .entity import InstanceWidget
 

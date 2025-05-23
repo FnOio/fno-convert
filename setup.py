@@ -29,4 +29,9 @@ setup(
         'fno_convert/functions': ['*.ttl'],
         'fno_convert': ["elk/package.json", "elk/elk_layout.js"]
     },
+    entry_points={
+        'console_scripts': [
+            'fno-convert=fno_convert.cli:main',
+        ],
+    },
 )

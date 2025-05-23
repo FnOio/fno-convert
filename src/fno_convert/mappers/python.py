@@ -1,15 +1,12 @@
-import inspect, importlib, importlib.util, sys, hashlib, os
+import inspect, importlib, importlib.util, sys, hashlib, os, argparse, ast
 
 from typing import Any
 from types import NoneType, ModuleType
-from rdflib import Literal, URIRef, BNode, RDF
+from rdflib import Literal, URIRef, BNode
 from rdflib.term import _toPythonMapping
-from datetime import datetime, date, time
-from decimal import Decimal
-
 from ..prefix import Prefix
 from ..builders import PythonBuilder, FnOBuilder
-from ..graph import FnOGraph, get_name
+from ..graph import FnOGraph, get_name, create_rdf_list
 
 _toPythonMapping[Prefix.ns('xsd').string] = str
 _toPythonMapping[Prefix.ns('xsd').boolean] = bool
@@ -136,27 +133,79 @@ class PythonMapper:
     ### MAPPINGS ###
     
     @staticmethod
+    def parse_args_with_map(g: FnOGraph, map, input_parts):
+        positionals = g.get_positionals(map)
+        keywords = g.get_keywords(map)
+
+        parser = argparse.ArgumentParser()
+
+        # Track how each terminal was added
+        uri_to_argname = {}
+
+        # Add positional arguments
+        for i, uri in enumerate(positionals):
+            argname = f'pos_{i}'
+            uri_to_argname[uri] = argname
+            if g.is_list_mapping(map, uri):
+                parser.add_argument(argname, nargs='*')
+            else:
+                parser.add_argument(argname)
+
+        # Add keyword arguments
+        for key, uri in keywords.items():
+            argname = key.replace('-', '_')
+            uri_to_argname[uri] = argname
+            if g.is_list_mapping(map, uri):
+                parser.add_argument(f'--{key}', dest=argname, nargs='*')
+            else:
+                parser.add_argument(f'--{key}', dest=argname)
+
+        # Parse
+        args = parser.parse_args(input_parts)
+
+        result = {}
+
+        # Resolve terminal values
+        used = set()
+        for i, uri in enumerate(positionals):
+            argname = f'pos_{i}'
+            val = getattr(args, argname, None)
+            if val is not None:
+                result[uri] = val
+                used.add(uri)
+
+        for key, uri in keywords.items():
+            if uri in used:
+                continue  # Skip if already used as positional
+            argname = key.replace('-', '_')
+            val = getattr(args, argname, None)
+            if val is not None:
+                result[uri] = val
+                used.add(uri)
+        
+        return result
+        
+    @staticmethod
     def map_with_parse_args(g: FnOGraph, fun, imp, output, args):
         context = get_name(fun)
         
         positional = []
-        keyword = {}
+        keyword = []
         defaults = {}
         
         index_mapping = []
         keyvalue_mapping = []
         
         for i, arg in enumerate(args):
-            paramNode = BNode()
             name = arg['name'].lstrip('-')
-            param = g.get_predicate_param(fun, name)
+            param = g.get_predicate_param(fun, name.replace('-', '_'))
             
             if not arg['name'].startswith('-'):
                 # Positional
                 positional.append(param)
             else:
                 # Keyword
-                keyword[param] = arg['name']
+                keyword.append((param, name))
             
             if 'nargs' in arg:
                 # TODO what values are possible for nargs?
@@ -318,6 +367,8 @@ class PythonMapper:
         
         if isinstance(inst, URIRef):
             return inst
+        if isinstance(inst, list):
+            return create_rdf_list(g, [ PythonMapper.value_to_term(g, el) for el in inst ]).uri
         if inst is None:
             return Literal(None)
         if type(inst) in _toPythonMapping.values():
@@ -330,13 +381,19 @@ class PythonMapper:
         
         return Literal(inst, datatype=inst_type)
 
-    def term_to_value(g: FnOGraph, term: Literal | URIRef):
+    @staticmethod
+    def term_to_value(g: FnOGraph, term: Literal | URIRef | BNode):
         if isinstance(term, URIRef):
             if g.is_implementation(term):
                 return PythonMapper.fno_to_obj(g, term)
             return term
+        if isinstance(term, BNode):
+            if g.is_list(term):
+                return [ PythonMapper.term_to_value(g, x) for x in g.to_list(term) ]
         if term.datatype is None and term.value == 'None':
             return None
+        if term.datatype is Prefix.ns('rdf').Seq:
+            return ast.literal_eval(term.value)
         return term.value
     
     @staticmethod
