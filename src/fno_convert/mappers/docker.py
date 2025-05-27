@@ -30,6 +30,8 @@ class DockerMapper:
         # TODO Dockerpedia annotater, now simply state labels
         g.add((imp_uri, Prefix.ns('fnoi').tag, Literal(image.attrs['RepoTags'][0])))
         g.add((imp_uri, Prefix.ns('rdfs').label, Literal(image.attrs['RepoTags'][0])))
+        g.add((imp_uri, Prefix.ns('fnoi').id, Literal(image.id)))
+        g.add((imp_uri, Prefix.ns('fnoi').shortId, Literal(image.short_id)))
         
         return imp_uri, image_tag
     

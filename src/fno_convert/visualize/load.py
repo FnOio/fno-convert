@@ -5,56 +5,34 @@ from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QScrollArea, QTextEdit, QVBox
 from PyQt6.QtGui import QTextCursor, QColor, QTextCharFormat
 from ..mappers import PythonMapper
 from ..graph import FnOGraph
-from ..util.python.ast import ASTUtil
-from ..descriptors.python import PythonDescriptor
-from ..descriptors.docker import DockerfileDescriptor
+from ..descriptors import FileDescriptor
 from rdflib import URIRef
 
-import os, sys, ast, inspect, time
+import os, sys, inspect, time
 
-class Descripter(QWidget):
+class Descriptor(QWidget):
 
-    file_loaded = pyqtSignal(str) # signal that a file is loaded
-    resource_described = pyqtSignal(FnOGraph, URIRef, URIRef, URIRef, str) # signal that a resource has been described
-    # function_loaded = pyqtSignal(ExecutableGraph, URIRef, list, URIRef) # signal that a new function is loaded
-    
+    file_loaded = pyqtSignal(str)
+    resource_described = pyqtSignal(FnOGraph, URIRef, URIRef, URIRef)
+
     def __init__(self) -> None:
         super().__init__()
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        self.layout = QVBoxLayout(self)
 
         self.file_button = QPushButton("Select File")
         self.file_button.clicked.connect(self.select_file)
         self.layout.addWidget(self.file_button)
 
-        # Add a horizontal line
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.layout.addWidget(line)
+        self.layout.addWidget(self._horizontal_line())
 
-        # Function select
-        self.function_label = QLabel("Function")
-        self.layout.addWidget(self.function_label)
+        self.triplet_label = QLabel("Select Function Triplet")
+        self.layout.addWidget(self.triplet_label)
 
-        self.function_select = QComboBox()
-        self.layout.addWidget(self.function_select)
+        self.triplet_select = QComboBox()
+        self.layout.addWidget(self.triplet_select)
 
-        # Implementation select
-        self.imp_label = QLabel("Implementation")
-        self.layout.addWidget(self.imp_label)
-
-        self.imp_select = QComboBox()
-        self.layout.addWidget(self.imp_select)
-        self.function_select.currentIndexChanged.connect(self.get_imps)
-        self.imp_select.currentIndexChanged.connect(self.get_maps)
-        
-        # Add a horizontal line
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        self.layout.addWidget(line)
+        self.layout.addWidget(self._horizontal_line())
 
         self.select_button = QPushButton("Select Function")
         self.select_button.clicked.connect(self.select_function)
@@ -64,123 +42,69 @@ class Descripter(QWidget):
 
         self.file_path = None
         self.graph = None
-        self.map_uri = None
+        self.triplets = []  # Stores (function_uri, mapping_uri, implementation_uri)
+
+    def _horizontal_line(self):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        return line
 
     def select_file(self):
-        self.file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "Python Files (*.py);;Dockerfile;;Turtle Files (*.ttl)")
-        if self.file_path:
-            # set current workdir
-            file_dir = os.path.dirname(self.file_path)
-            prev_workdir = os.getcwd()
-            os.chdir(file_dir)
-            
-            if self.file_path.endswith(".py"):
-                with open(self.file_path, "r") as file:
-                    source = file.read()
-                    self.file_loaded.emit(source)
-                
-                g = FnOGraph()
-                fun_uri, map_uris, imp_uri = PythonDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "python")
-            
-            if self.file_path.endswith("Dockerfile"):
-                with open(self.file_path, "r") as file:
-                    source = file.read()
-                    self.file_loaded.emit(source)
-                g = FnOGraph()
-                fun_uri, map_uris, imp_uri = DockerfileDescriptor(g).describe_file(self.file_path)
-                self.resource_described.emit(g, fun_uri, map_uris[0], imp_uri, "dockerfile")
-            
-            if self.file_path.endswith(".ttl"):
-                with open(self.file_path, "r") as file:
-                    source = file.read()
-                    self.file_loaded.emit(source)
-                self.graph = FnOGraph()
-                self.graph.parse(self.file_path)
-                    
-                for fun in self.graph.functions():
-                    self.function_select.addItem(self.graph.get_name(fun), fun)
-            
-            os.chdir(prev_workdir)
-    
-    def get_imps(self):
-        self.imp_select.clear()
+        self.file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select File", "", "Python Files (*.py);;Dockerfile;;Turtle Files (*.ttl)"
+        )
+
+        if not self.file_path:
+            return
         
-        function_uri = self.function_select.currentData()
-        if function_uri:
-            imps = { imp for _, imp in self.graph.fun_to_imp(function_uri) }
-            for imp in imps:
-                self.imp_select.addItem(self.graph.get_name(imp), imp)
-    
-    def get_maps(self):        
-        function_uri = self.function_select.currentData()
-        imp_uri = self.imp_select.currentData()
-        if function_uri and imp_uri:
-            map_uris = self.graph.mappings(function_uri, imp_uri)
-            if len(map_uris) == 1:
-                self.map_uri = map_uris[0]
-            
+        with open(self.file_path, "r") as file:
+            self.file_loaded.emit(file.read())
+
+        self.graph = FnOGraph()
+        self.triplet_select.clear()
+        self.triplets.clear()
+
+        if self.file_path.endswith(".ttl"):
+            self.graph.parse(self.file_path)
+
+        else:
+            cwd = os.getcwd()
+            fno_rep = FileDescriptor(self.graph, cwd).describe(self.file_path)
+            if not fno_rep:
+                self.show_message("No functions found in the file.", QMessageBox.Warning)
+                return
+
+        # Aggregate all function-mapping-implementation triplets
+        for fun_uri in self.graph.functions():
+            for map_uri, imp_uri in self.graph.fun_to_imp(fun_uri):
+                self.triplets.append((fun_uri, map_uri, imp_uri))
+
+        for fun_uri, map_uri, imp_uri in self.triplets:
+            fun_name = self.graph.label(fun_uri)
+            map_name = self.graph.method_name(map_uri)
+            imp_name = self.graph.label(imp_uri)
+
+            parts = [f"Function: {fun_name}"]
+            if map_name:
+                parts.append(f"Mapping: {map_name}")
+            parts.append(f"Implementation: {imp_name}")
+
+            label = " | ".join(parts)
+            self.triplet_select.addItem(label, (fun_uri, map_uri, imp_uri))
+
     def select_function(self):
-        
         if not self.file_path:
-            self.show_message("Please select a file first.", QMessageBox.Icon.Warning)
-            return
-        
-        if not self.graph:
-            self.show_message("Please load a turtle file first.", QMessageBox.Icon.Warning)
-            return
-        
-        function_uri = self.function_select.currentData()
-        if not function_uri:
-            self.show_message("Please select a function first.", QMessageBox.Icon.Warning)
-            return     
-        
-        imp_uri = self.imp_select.currentData()
-        if not imp_uri:
-            self.show_message("Please select an implementation first.", QMessageBox.Icon.Warning)
-            return
-        
-        if not self.map_uri:
-            self.show_message("No suitable mapping found.", QMessageBox.Icon.Warning)
-            return
-        
-        self.resource_described.emit(self.graph, function_uri, self.map_uri, imp_uri, "")
-        
-
-    def load_function(self):
-        function_name = self.function_select.currentText()
-
-        if not self.file_path:
-            self.show_message("Please select a file first.", QMessageBox.Icon.Warning)
-            return
-        
-        if not function_name:
-            self.show_message("Please select a pipeline first.", QMessageBox.Icon.Warning)
+            self.show_message("Please select a file first.", QMessageBox.Warning)
             return
 
-        try:
-            file_dir = os.path.dirname(self.file_path)
-            sys.path.append(file_dir)  # Add the file directory to the Python path
+        if not self.graph or not self.triplet_select.currentData():
+            self.show_message("Please select a valid function triplet.", QMessageBox.Warning)
+            return
 
-            with open(self.file_path, "r") as file:
-                code = compile(file.read(), self.file_path, 'exec')
-            exec(code)
-            selected_function = locals().get(function_name)
-            if selected_function and callable(selected_function):
-                start = time.time()
-                graph = FnOGraph()
-                uri = PythonDescriptor(graph).describe_resource(selected_function)
-                stop = time.time()
-                print(f"gen time: {(stop-start)*1000}")
-                print(f"num of triples: {len(graph)}")
-                self.function_loaded.emit(graph, uri)
-            else:
-                self.show_message(f"Function '{function_name}' not found or not callable.", QMessageBox.Icon.Warning)
-        except Exception as e:
-            self.show_message(f"Error loading function: {e}", QMessageBox.Icon.Critical)
-        finally:
-            sys.path.remove(file_dir)  # Remove the file directory from the Python path after execution
-    
+        fun_uri, map_uri, imp_uri = self.triplet_select.currentData()
+        self.resource_described.emit(self.graph, fun_uri, map_uri, imp_uri)
+
     def show_message(self, message, icon):
         msg_box = QMessageBox()
         msg_box.setIcon(icon)

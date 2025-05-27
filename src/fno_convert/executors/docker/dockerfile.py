@@ -12,29 +12,48 @@ from ..std import Executer
 import os, subprocess, docker
 from pathspec import PathSpec
 
-def docker_build(dirpath, tag):
+def build_image_clean(dirpath, tag):
+    """
+    Build a Docker image from a directory, tag it, and clean up dangling images.
     
-    # Prepare the docker build command
-    build_command = ['docker', 'build', '-q', '--provenance=true', '--sbom=true', dirpath]
+    Args:
+        dirpath (str): Path to the Docker build context (e.g., directory with Dockerfile)
+        tag (str): Image tag to use (e.g., 'myimage:latest')
     
-    if tag:
-        build_command.extend(['-t', tag])
+    Returns:
+        str: ID of the built Docker image
+    """
+    client = docker.from_env()
 
     try:
-        # Run the docker build command and capture the output
-        result = subprocess.run(
-            build_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-            text=True
-        )
-        
-        # return the image id
-        return result.stdout
-    
-    except subprocess.CalledProcessError as e:
-        print(f"Error during Docker build: {e.stderr}")
+        # Build the image with specified tag
+        print(f"Building image with tag: {tag}")
+        image, logs = client.images.build(path=dirpath, tag=tag, rm=True)
+
+        # Print build logs (optional)
+        for chunk in logs:
+            if 'stream' in chunk:
+                print(chunk['stream'], end='')
+
+        # Remove dangling images (intermediate, untagged ones)
+        print("\nCleaning up dangling images...")
+        dangling_images = client.images.list(filters={"dangling": True})
+        for img in dangling_images:
+            try:
+                client.images.remove(img.id, force=True)
+                print(f"Removed dangling image: {img.short_id}")
+            except Exception as e:
+                print(f"Failed to remove image {img.id}: {e}")
+
+        return image
+
+    except docker.errors.BuildError as e:
+        print("Build failed:", e)
+        for line in e.build_log:
+            print(line.get('stream', ''), end='')
+        raise
+    except docker.errors.APIError as e:
+        print("Docker API error:", e)
         raise
 
 class DockerfileExecutor(Executer):
@@ -57,6 +76,7 @@ class DockerfileExecutor(Executer):
             Prefix.do().maintainer: self.no_execution,
             Prefix.do()['from']: self.no_execution,
         }
+        self.workdir = ''
         
     def uri(self):
         return Prefix.ns('fnoi').DockerfileExecutor    
@@ -81,11 +101,9 @@ class DockerfileExecutor(Executer):
         
         return self.pg
     
-    def build(self, fun: Function) -> FnOGraph:
-        self.fileDescriptor = FileDescriptor(self.pg)
-        
+    def build(self, fun: Function) -> FnOGraph:        
         # Get the Dockerfile metadata
-        tag = fun["tag"].get()
+        self.tag = fun["tag"].get()
         filepath = self.g.get_file(fun.imp)
         self.dir = os.path.dirname(filepath)
         self.load_dockerignore()
@@ -99,16 +117,15 @@ class DockerfileExecutor(Executer):
         client = docker.client.from_env()
         
         # Build the image
-        # docker_build(self.dir, tag)
-        image, _ = client.images.build(path=self.dir, tag=tag, rm=True)
+        # image, _ = client.images.build(path=self.dir, tag=tag, rm=True)
+        image = build_image_clean(self.dir, self.tag)
     
         # describe the image
-        self.imp_uri, image_tag = DockerMapper.map_image(self.pg, image)
+        self.imp_uri, self.image_tag = DockerMapper.map_image(self.pg, image)
         fun.output.set(self.imp_uri)
         
         # create function uri
-        self.fun_uri = Prefix.base()[f"{image_tag}{image.short_id.removeprefix('sha256:')}"]
-        self.image_name = tag
+        self.fun_uri = Prefix.base()[f"{self.image_tag}DockerImage"]
     
     def provenance(self, fun: Function, *args, **kwargs):
         _, exe_uri = super().provenance(fun, *args, **kwargs)
@@ -116,79 +133,81 @@ class DockerfileExecutor(Executer):
         # Image was derived from Dockerfile
         ProvBuilder.derivedFrom(self.pg, self.imp_uri, fun.imp)
         
-        try:
-            cmdstr = self.entrypoint_cmd + ' ' + ' '.join(self.entrypoint_params)
-            fun_uri, comp_uri = CLIDescriptor(self.pg).describe(cmdstr)
-            
+        cmdstr = self.entrypoint_cmd + ' ' + ' '.join(self.entrypoint_params)
+        fno_rep = CLIDescriptor(self.pg, self.workdir).describe(cmdstr)
+        
+        if fno_rep:
+            fun_uri, comp_uri = fno_rep
+            FnOBuilder.represents(self.pg, comp_uri, self.fun_uri)
+        
             # Create a new function based on the entrypoint cmd
             # Copy the unmapped parameters
             param_uris = {}
-            params = self.pg.unmapped_parameters(comp_uri, fun_uri)
+            params = self.pg.get_parameters(fun_uri, include_self=True)
             for i, param in enumerate(params):
-                uri = Prefix.base()[f'{self.image_name}Parameter{i}']
+                uri = Prefix.base()[f'{self.image_tag}Parameter{i}']
                 FnOBuilder.describe_parameter(self.pg, uri, 
-                                              Prefix.ns('xsd').string, 
-                                              self.pg.get_predicate(param))
+                                                Prefix.ns('xsd').string, 
+                                                self.pg.get_predicate(param))
                 param_uris[param] = (uri)
                 
-                mapping = Mapping(MappingNode().set_function_out(self.fun_uri, uri), MappingNode.set_function_out(fun_uri, param))
+                mapping = Mapping(MappingNode().set_function_out(self.fun_uri, uri), MappingNode().set_function_out(fun_uri, param))
                 FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
             
             # Copy the outputs and map them accordingly
             output_uris = []
             output = self.pg.get_output(fun_uri)
-            uri = Prefix.base()[f'{self.image_name}Output']
+            uri = Prefix.base()[f'{self.image_tag}Output']
             FnOBuilder.describe_output(self.pg, uri, self.pg.get_output_type(output), self.pg.get_predicate(output))
             output_uris.append(uri)
             
-            mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode.set_function_out(self.fun_uri, uri))
+            mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode().set_function_out(self.fun_uri, uri))
             FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
             
             if self.pg.has_self_output(fun_uri):
                 output = self.pg.get_self_output(fun_uri)
-                uri = Prefix.base()[f'{self.image_name}SelfOutput']
+                uri = Prefix.base()[f'{self.image_tag}SelfOutput']
                 FnOBuilder.describe_output(self.pg, uri, self.pg.get_output_type(output), self.pg.get_predicate(output))
                 output_uris.append(uri)
                 
-                mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode.set_function_out(self.fun_uri, uri))
+                mapping = Mapping(MappingNode().set_function_out(fun_uri, output), MappingNode().set_function_out(self.fun_uri, uri))
                 FnOBuilder.add_mapping(self.pg, comp_uri, mapping)
             
             # Create FnO Function
-            FnOBuilder.describe_function(self.pg, self.fun_uri, self.image_name, param_uris.values(), output_uris)
+            FnOBuilder.describe_function(self.pg, self.fun_uri, self.tag, param_uris.values(), output_uris)
             
             # Copy the mapping 
             # TODO with new default values based on cmd
             for map_uri in self.pg.get_mapping(fun_uri):
                 positional = []
                 keywords = []
+                lists = set()
+                dicts = set()
                 
                 for param in params:
                     index = self.pg.parameter_position(map_uri, param)
-                    if index:
+                    if index is not None:
                         positional.append((index, param_uris[param]))
                     
-                    key = self.pg.parameter_key(map_uri, param)
+                    key = self.pg.parameter_keyword(map_uri, param)
                     if key:
                         keywords.append((param_uris[param], key))
+                    
+                    if self.pg.is_list_mapping(map_uri, param):
+                        lists.add(param_uris[param])
+                    
+                    if self.pg.is_keyvalue_mapping(map_uri, param):
+                        dicts.add(param_uris[param])
                 
                 positional = [ param[1] for param in sorted(positional, key=lambda x: x[0]) ]
                         
                 FnOBuilder.describe_mapping(self.pg, self.fun_uri, self.imp_uri, "docker run", 
-                                            output_uris[0], positional, keywords,
+                                            output_uris[0], positional, keywords, lists, dicts,
                                             self_output=output_uris[1] if len(output_uris) > 1 else None)
             
             # Docker image is a specialization of its entrypoint
             for _, imp_uri in self.pg.fun_to_imp(fun_uri):
                 ProvBuilder.specialiazitionOf(self.pg, self.imp_uri, imp_uri)
-            
-        except ValueError:
-            # entrypoint cannot be represented using FnO
-            pass
-        
-        
-        
-        
-        
         
         """if self.entrypoint_cmd and self.entrypoint_cmd.startswith("python"):
             # Look for the correct python implementation
@@ -269,9 +288,9 @@ class DockerfileExecutor(Executer):
                     mapto = MappingNode().set_function_par(rep.fun_uri, rep_varkey.uri)
                     mappings.append(Mapping(mapfrom, mapto))
                     
-                FnOBuilder.describe_function(self.pg, self.fun_uri, self.image_name, parameters=inputs)
+                FnOBuilder.describe_function(self.pg, self.fun_uri, self.image_tag, parameters=inputs)
                 map_uri = FnOBuilder.describe_mapping(self.pg, self.fun_uri, self.imp_uri,
-                                            f_name=f"docker run {self.image_name}",
+                                            f_name=f"docker run {self.image_tag}",
                                             positional=positional, keyword=keywords,
                                             args=varpos, kargs=varkey)
                 comp_uri = URIRef(f"{self.fun_uri}Composition")
@@ -292,28 +311,7 @@ class DockerfileExecutor(Executer):
 
     def execute_copy(self, fun: Function, *args, **kwargs):
         # Describe all files inside the src directory
-        src_dir = fun[Prefix.do().copySrc].value.replace('.', self.dir)
-        dest_dir = fun[Prefix.do().copyDest].value.replace('.', self.workdir)
-        
-        # recursively find all files in all subdirectories
-        copied_uris = set()
-        for file in self.iterate_files():
-            try:
-                self.fileDescriptor.describe(os.path.join(os.getcwd(), file))
-            except ValueError as e:
-                pass
-            
-            for uri in [ uri for uri in self.pg.functions() if uri not in copied_uris]:
-                copied_uris.add(uri)
-                # Get the original implementation **Just one imp expected**
-                for mapping, imp in self.pg.fun_to_imp(uri):
-                    # Copy the implementation
-                    imp_copy = move_file(self.pg, mapping, imp, src_dir, dest_dir)
-                    if imp_copy:
-                        # Provenance
-                        fun.prov.generated.append(imp_copy)
-                        ProvBuilder.alternateOf(self.pg, imp_copy, imp)
-                        DockerBuilder.includes(self.pg, self.imp_uri, imp_copy)
+        pass
 
     def execute_workdir(self, fun: Function, *args, **kwargs):
         # Set workdir

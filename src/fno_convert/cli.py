@@ -38,11 +38,15 @@ def describe(args):
 
     print(f"\nGenerated FnO Representation for {args.resource} in {args.output}:")
 
-    labels = ["FnO Function", "FnO Mappings", "FnO Implementation"]
-
-    for label, value in zip(labels, fno_rep):
-        if value:
-            print(f"  {label}: {value}")
+    for i, (fun_uri, map_uri, imp_uri) in enumerate(fno_rep):
+        print(f"{i}:")
+        print(f"\tFnO Function: \t{fun_uri}")
+        print(f"\tFnO Mapping: \t{map_uri}")
+        print(f"\tFnO Implementation: \t{imp_uri}")
 
 def execute(args):
-    print("The 'execute' subcommand is not implemented yet.")
+    g = FnOGraph()
+    g.serialize(args.graph)
+
+if __name__ == "__main__":
+    main()

@@ -31,6 +31,7 @@ class DockerBuilder:
         g.add((file_uri, RDF.type, Prefix.ns('fnoi').Dockerfile))
         g.add((file_uri, RDF.type, Prefix.ns('do').Dockerfile))
         g.add((file_uri, Prefix.ns('fnoi').file, URIRef(f"file://{abs_path}")))
+        g.add((file_uri, Prefix.ns('rdfs').label, Literal(abs_path)))
         
         ### FNO MAPPING ###
         

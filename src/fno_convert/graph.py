@@ -136,7 +136,7 @@ class FnOGraph(Graph):
             iffalse[0] if len(iffalse) == 1 else None
         )
 
-    def get_name(self, f):
+    def label(self, uri):
         """
         Retrieves the context-free name of a function.
         
@@ -145,26 +145,26 @@ class FnOGraph(Graph):
         :return: str or None
             The function's context-free name or None if not found.
         """
-        f = self.check_call(f)
+        uri = self.check_call(uri)
         result = [x['name'].value for x in self.query(
             f'''
             SELECT ?name WHERE {{
-                <{f}> rdfs:label ?name ;
+                <{uri}> rdfs:label ?name ;
             }}''', 
             initNs=Prefix.NAMESPACES
         )]
         
-        """
+        return result[0] if len(result) == 1 else None
+    
+    def method_name(self, mapping):
         result = [x['name'].value for x in self.query(
             f'''
             SELECT ?name WHERE {{
-                ?mapping fno:function <{f}> ;
-                         fno:methodMapping ?methodmap .
-                ?methodmap fnom:method-name ?name .
+                <{mapping}> fno:methodMapping ?methodmap .
+                    ?methodmap fnom:method-name ?name .
             }}''', 
             initNs=Prefix.NAMESPACES
         )]
-        """
         
         return result[0] if len(result) > 0 else None
     
@@ -755,24 +755,6 @@ class FnOGraph(Graph):
             return result[0]
         return None, None
     
-    def unmapped_parameters(self, comp_uri, fun_uri):
-        """
-        Return a list of parameters for a given function that are not mapped in the composition
-        """
-        parameters = self.get_parameters(fun_uri, include_self=True)
-        
-        mapped = [
-            x['par'] for x in self.query(f"""
-                SELECT ?par WHERE {{
-                    <{comp_uri}> fnoc:composedOf ?mapping .
-                    ?mapping fnoc:mapto ?endpoint .
-                    ?endpoint fnoc:consituentFunction <{fun_uri}> ;
-                        fnoc:functionParameter ?par .
-            }}""", initNs=Prefix.NAMESPACES)
-        ]
-        
-        return [param for param in parameters if param not in mapped]
-    
     ### TERMS ###
     
     def is_list(self, seq):
@@ -948,23 +930,10 @@ class FnOGraph(Graph):
             return None
         
         raise Exception(f"Multiple keys mapped in mapping {mapping} for parameter {param}: {result}")
-    
-    def is_list_mapping(self, mapping, param):
-        try:
-            result = self.query(f'''
-                ASK WHERE {{
-                    <{mapping}> fno:parameterMapping ?varmapping .
-                    ?varmapping a fnom:ListMapping ;
-                            fnom:functionParameter <{param}> .
-                }}''', initNs=Prefix.NAMESPACES)
-            return True if result else False
-        except ParseException as e:
-            print(f"Error while parsing query when fetching variable positional parameters for <{get_name(mapping)}>: <{e}>")
-            return None
 
-    def get_varpositional(self, mapping):
+    def get_list_mappings(self, mapping):
           """
-          Get variable positional parameters of a function.
+          Get variable list parameters of a function.
 
           Args:
                f (str): The URI of the function.
@@ -987,7 +956,7 @@ class FnOGraph(Graph):
                print(f"Error while parsing query when fetching variable positional parameters for <{get_name(mapping)}>: <{e}>")
                return None
 
-    def is_varpositional(self, mapping, param):
+    def is_list_mapping(self, mapping, param):
           """
           Check if a parameter of a function is a variable positional parameter.
 
@@ -1012,7 +981,7 @@ class FnOGraph(Graph):
 
     def get_varkeyword(self, mapping):
           """
-          Get variable keyword parameters of a function.
+          Get variable keyvalue parameters of a function.
 
           Args:
                f (str): The URI of the function.
@@ -1035,9 +1004,9 @@ class FnOGraph(Graph):
                print(f"Error while parsing query when fetching variable keyword parameters for <{get_name(mapping)}>: <{e}>")
                return None
 
-    def is_varkeyword(self, mapping, param):
+    def is_keyvalue_mapping(self, mapping, param):
           """
-          Check if a parameter of a function is a variable keyword parameter.
+          Check if a parameter of a function is a variable keyvalue parameter.
 
           Args:
                f (str): The URI of the function.
@@ -1377,14 +1346,26 @@ class FnOGraph(Graph):
     
     def mappings(self, fun, imp):
         """
-        Retrieve a list of FnO Mappings for a given FnO Function and implementation pair. 
-        Return None if no mapping can be found for this pair.
+        Retrieve a list of FnO Mappings for a given FnO Function and implementation pair.
         """
         result = [
             x['mapping'] for x in self.query(f'''
                 SELECT ?mapping WHERE {{
                     ?mapping fno:function <{fun}> ;
                              fno:implementation <{imp}> .
+                }}''', initNs=Prefix.NAMESPACES)
+        ]
+        return result
+    
+    def implementations(self, fun, map):
+        """
+        Retrieve a list of FnO Implementations for a given FnO Function and Mapping pair. 
+        """
+        result = [
+            x['imp'] for x in self.query(f'''
+                SELECT ?imp WHERE {{
+                    <{map}> fno:function <{fun}> ;
+                            fno:implementation ?imp .
                 }}''', initNs=Prefix.NAMESPACES)
         ]
         return result

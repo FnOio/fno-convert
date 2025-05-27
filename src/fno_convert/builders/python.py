@@ -55,7 +55,7 @@ class PythonBuilder:
         ### FNO IMPLEMENTATION ###
         g.add((file_uri, RDF.type, Prefix.ns('fnoi').PythonFile))
         if file_path:
-            g.add((file_uri, Prefix.ns('doap').name, Literal(os.path.basename(file_path))))
+            g.add((file_uri, Prefix.ns('rdfs').label, Literal(os.path.basename(file_path))))
             g.add((file_uri, Prefix.ns('fnoi').file, URIRef(f"file://{file_path}")))
         
         return file_uri

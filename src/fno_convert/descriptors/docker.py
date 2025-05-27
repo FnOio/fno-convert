@@ -1,15 +1,16 @@
 from dockerfile_parse import DockerfileParser
 from rdflib import URIRef
-from pathlib import Path
+from pathspec import PathSpec
 
 import ast, os
-from . import CLIDescriptor
+from . import CLIDescriptor, FileDescriptor
 from ..prefix import Prefix
 from ..graph import FnOGraph
 from ..builders import FnOBuilder, DockerBuilder, ProvBuilder
 from ..mappers import FileMapper, PythonMapper
 from ..util.std_kg import STD_KG
 from ..util.mapping import Mapping, MappingNode
+from ..util.file import move_file
 
 INPUT_IMAGE = Prefix.do()["imageInputParam"]
 OUTPUT_IMAGE = Prefix.do()["imageOutputParam"]
@@ -18,24 +19,28 @@ OUTPUT_IMAGE = Prefix.do()["imageOutputParam"]
 
 class DockerfileDescriptor:
     
-    def __init__(self, g: FnOGraph) -> None:
+    def __init__(self, g: FnOGraph, workdir) -> None:
         self.parser = DockerfileParser()
         self.g = g
         
-        self.workdir = '.'
+        self.host_wd = workdir
+        self.file_wd = workdir
+        self.con_wd = ''
         self.files = {}
     
     def can_describe_file(self, path):
         return path.endswith("Dockerfile")
     
     def describe_file(self, path):
-        self.dir = os.path.dirname(path)
-        name = os.path.basename(self.dir)
+        self.file_wd = os.path.join(self.host_wd, os.path.dirname(path))
+        name = os.path.basename(self.file_wd)
         file_uri = FileMapper.uri(path)
-        fun_uri = Prefix.base()[f"{name}Dockerfile"]
         if not self.g.exists(file_uri):
             
+            self.load_dockerignore()
+            
             ### DOCKERFILE ###
+            fun_uri = Prefix.base()[f"{name}Dockerfile"]
             map_uri = DockerBuilder.describe_dockerfile(self.g, path, fun_uri, file_uri)
         
             ### URI ###
@@ -55,7 +60,16 @@ class DockerfileDescriptor:
             # Indicate start
             FnOBuilder.start(self.g, comp_uri, self.start)
                 
-        return fun_uri, [map_uri], file_uri
+            return [(fun_uri, map_uri, file_uri)]
+        
+        return [(fun_uri, map_uri, file_uri) for (map_uri, fun_uri) in self.g.imp_to_fun(file_uri)]
+
+    def load_dockerignore(self):
+        patterns = ['Dockerfile', '.dockerignore']
+        if os.path.exists('.dockerignore'):
+            with open('.dockerignore', 'r') as file:
+                patterns.extend(file.readlines())
+        self.ignore = PathSpec.from_lines('gitwildmatch', patterns)
     
     def handle_mapping(self, mapfrom, mapto):
         self.mappings.append(Mapping(mapfrom, mapto))
@@ -128,10 +142,6 @@ class DockerfileDescriptor:
             entrypoint_cmd_params = MappingNode().set_function_par(call_uri, Prefix.do()['entrypointInputParamList'])
             values = MappingNode().set_constant(PythonMapper.value_to_term(self.g, values[1:]))
             self.handle_mapping(values, entrypoint_cmd_params)
-            """for i, value in enumerate(values[1:]):
-                param = MappingNode().set_constant(value)
-                entrypoint_cmd_params.set_strategy("toList", i)
-                self.handle_mapping(param, entrypoint_cmd_params)"""
         
         self.handle_order(call_uri)
     
@@ -143,12 +153,10 @@ class DockerfileDescriptor:
         values = ast.literal_eval(values)
         
         # Set command parameters
-        entrypoint_cmd_params = MappingNode().set_function_par(call_uri, Prefix.do()['cmdInputParamList'])
-        for i, value in enumerate(values):
-            # value = Descriptor.describe(self.g, value, dir=self.dir)
-            param = MappingNode().set_constant(value)
-            entrypoint_cmd_params.set_strategy("toList", i)
-            self.handle_mapping(param, entrypoint_cmd_params)
+        if len(values) > 1:
+            cmd_params = MappingNode().set_function_par(call_uri, Prefix.do()['cmdInputParamList'])
+            values = MappingNode().set_constant(PythonMapper.value_to_term(self.g, values[1:]))
+            self.handle_mapping(values, cmd_params)
         
         self.handle_order(call_uri)
     
@@ -164,12 +172,11 @@ class DockerfileDescriptor:
         self.handle_order(call_uri)
         
         # Check if the run cmd can be written as an FnO Function
-        try:
-            fun_uri, comp_uri = CLIDescriptor(self.g).describe(value)
+        fno_rep = CLIDescriptor(self.g, self.con_wd).describe(value)
+        if fno_rep:
+            fun_uri, comp_uri = fno_rep
             FnOBuilder.represents(self.g, comp_uri, call_uri)
             ProvBuilder.specialiazitionOf(self.g, call_uri, fun_uri)
-        except ValueError as e:
-            pass
     
     def handle_copy(self, value):
         inst = 'copy'
@@ -191,18 +198,30 @@ class DockerfileDescriptor:
         dest_node = MappingNode().set_constant(dest)
         dest_input = MappingNode().set_function_par(call_uri, Prefix.do()['copyDest'])
         self.handle_mapping(dest_node, dest_input)
-
-        # Update COPY mappings for COPY . .
-        if src == '.' and dest == '.':
-            src_path = Path(self.dir).resolve()
-
-            for local_file in src_path.rglob('*'):
-                if local_file.is_file():
-                    relative_path = local_file.relative_to(src_path)
-                    container_path = (Path(self.workdir) / relative_path).as_posix()
-                    self.files[container_path] = str(local_file)
+        
+        # Describe all files inside the host src directory
+        src_dir = src.replace('.', self.file_wd)
+        fileDescriptor = FileDescriptor(self.g, src_dir)
+        for file in self.iterate_files():
+            fileDescriptor.describe(file)
+        
+        # Copy the implementations to the container dest directory
+        dest_dir = dest.replace('.', self.con_wd)
+        for uri in self.g.functions():
+            # Get the original implementation **Just one imp expected**
+            for mapping, imp in self.g.fun_to_imp(uri):
+                # Copy the implementation
+                imp_copy = move_file(self.g, mapping, imp, src_dir, dest_dir)
+                if imp_copy:
+                    ProvBuilder.alternateOf(self.g, imp_copy, uri)
         
         self.handle_order(call_uri)
+    
+    def iterate_files(self):
+        for _, _, files in os.walk(self.file_wd):
+            for file in files:
+                if not self.ignore.match_file(file):
+                    yield file
         
     def handle_workdir(self, value):
         inst = 'workdir'
@@ -215,5 +234,4 @@ class DockerfileDescriptor:
         
         self.handle_order(call_uri)
         
-        # store workdir
-        self.workdir = value
+        self.con_wd = value

@@ -28,6 +28,7 @@ from ..graph import FnOGraph, get_name
 from ..prefix import Prefix
 from ..mappers import PythonMapper, FileMapper
 from ..executors import PythonExecutor
+from ..descriptors import FileDescriptor
 
 class PythonDescriptor:
 
@@ -35,8 +36,9 @@ class PythonDescriptor:
     def name_node(name: str):
         return ast.Name(id=name, ctx=ast.Load())
     
-    def __init__(self, g: FnOGraph, max_depth=3) -> None:
+    def __init__(self, g: FnOGraph, workdir, max_depth=3) -> None:
         self.g = g
+        self.workdir = workdir
         self.executor = PythonExecutor(g)
         self.importer = Importer()
         self.rewriter = ASTRewriter(parse_arg=True)
@@ -74,13 +76,12 @@ class PythonDescriptor:
         if len(parts) < 2:
             raise Exception("No File stated after 'python' command.")
         
-        fno_rep = self.describe_file(parts[1])
-        fun_uri = fno_rep[0]
+        fno_rep = FileDescriptor(self.g, self.workdir).describe(parts[1])
         encoded = hashlib.sha256(cmd.encode()).hexdigest()[:8]
         comp_uri = Prefix.base()[f"command{encoded}Composition"]
         
-        print(fno_rep)
-        for map_uri in fno_rep[1]:
+        # TODO create composition for all fno representations
+        for fun_uri, map_uri, _ in fno_rep:
             try:
                 argparse_mappings = PythonMapper.parse_args_with_map(self.g, map_uri, 
                                                                     parts[2:] if len(parts) >= 2 else [])
@@ -114,7 +115,7 @@ class PythonDescriptor:
         file_uri = FileMapper.uri(file_path)
         file_name, suff = os.path.splitext(os.path.basename(file_path))
         fun_uri = Prefix.base()[f"{file_name}_main"]
-        if not self.g.exists(fun_uri):
+        if not self.g.exists(file_uri):
             ### IMPORT ###
             try:
                 self.importer.import_from_file(file_path)
@@ -123,11 +124,9 @@ class PythonDescriptor:
                 print(traceback.format_exc())
                 
             ### PARSE SOURCE CODE ###
-            
             with open(file_path, 'r') as file:
                 source_code = file.read()
             source_code, args = self.rewriter.rewrite(source_code)
-            
             # URI
             comp_uri = URIRef(f"{fun_uri}Composition")
             
@@ -158,10 +157,9 @@ class PythonDescriptor:
             # FnO Composition
             self.describe_composition("_", file_path, fun_uri, comp_uri, source_code, alt_name=file_name)
             
-            return fun_uri, [map_uri], file_uri
+            return [(fun_uri, map_uri, file_uri)]
         
-        map_uris = self.g.mappings(fun_uri, file_uri)
-        return fun_uri, map_uris, file_uri
+        return [(fun_uri, map_uri, file_uri) for (map_uri, fun_uri) in self.g.imp_to_fun(file_uri)]
 
     def from_function(self, name, context, obj, num=0, keywords=[]):
         
@@ -682,7 +680,7 @@ class PythonDescriptor:
                     # call on attr
                     mapping = self.g.get_mapping(fun_uri, first=True)
                     positional = self.g.get_positionals(mapping)
-                    varpos = self.g.get_varpositional(mapping)
+                    varpos = self.g.get_list_mappings(mapping)
                     varkey = self.g.get_varkeyword(mapping)
                     
                     ## map arguments to correct applied inputs
@@ -828,7 +826,7 @@ class PythonDescriptor:
         # TODO store the created mapping and imp if a function is made to avoid ambiguity
         mapping = self.g.get_mapping(f, first=True)
         positional = self.g.get_positionals(mapping)
-        varpos = self.g.get_varpositional(mapping)
+        varpos = self.g.get_list_mappings(mapping)
         varkey = self.g.get_varkeyword(mapping)
 
         # Map value to self parameter if called upon a variable

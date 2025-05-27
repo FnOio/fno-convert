@@ -40,9 +40,16 @@ class ExeCtrlWidget(QWidget):
         
         self.executor = None
 
-    def setFunction(self, g: FnOGraph, fun_uri, map_uri, imp_uri, executor):
-        if self.executor != "":
-            self.inputWidget.executor.setCurrentText(executor)
+    def setFunction(self, g: FnOGraph, fun_uri, map_uri, imp_uri):
+        if imp_uri:
+            if g.is_python(imp_uri):
+                self.inputWidget.executor.setCurrentText("python")
+            if g.is_dockerfile(imp_uri):
+                self.inputWidget.executor.setCurrentText("dockerfile")
+            if g.is_dockerimage(imp_uri):
+                self.inputWidget.executor.setCurrentText("dockerimage")
+            if g.is_dockercontainer(imp_uri):
+                self.inputWidget.executor.setCurrentText("dockercontainer")
         
         self.function = Function(g, fun_uri, map_uri, imp_uri)
         
@@ -159,15 +166,7 @@ class ConvertWidget(QWidget):
 
         layout = QVBoxLayout(self)
 
-        if self.inp.type in [str, int, float]:
-            self.input_field = QLineEdit(self)
-            if self.inp.type == int:
-                self.input_field.setValidator(QIntValidator())
-            elif self.inp.type == float:
-                self.input_field.setValidator(QDoubleValidator())
-            
-            layout.addWidget(self.input_field)
-        elif self.inp.param_mapping.index:
+        if self.inp.param_mapping.index:
             button_layout = QHBoxLayout()
             
             add_button = QPushButton('+', self)
@@ -191,6 +190,14 @@ class ConvertWidget(QWidget):
             button_layout.addWidget(remove_button)
             
             layout.addLayout(button_layout)
+        elif self.inp.type in [str, int, float]:
+            self.input_field = QLineEdit(self)
+            if self.inp.type == int:
+                self.input_field.setValidator(QIntValidator())
+            elif self.inp.type == float:
+                self.input_field.setValidator(QDoubleValidator())
+            
+            layout.addWidget(self.input_field)
         
         self.setLayout(layout)
     

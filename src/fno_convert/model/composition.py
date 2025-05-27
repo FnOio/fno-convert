@@ -96,7 +96,7 @@ class Composition:
     
     def ingest(self, fun):
         for input in fun.inputs():
-            if input in self.mappings:
+            if input in self.mappings and input.value_set:
                 self.mappings[input].execute()            
     
     def get_terminal(self, call, ter):

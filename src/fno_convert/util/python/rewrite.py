@@ -13,6 +13,7 @@ class ASTRewriter(ast.NodeTransformer):
         self.arg_var = None
     
     def rewrite(self, source_code):
+        self.arguments = []
         tree = ast.parse(source_code)
         transformed_tree = self.visit(tree)
         ast.fix_missing_locations(transformed_tree)

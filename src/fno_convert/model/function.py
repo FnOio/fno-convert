@@ -12,7 +12,7 @@ class Function(QObject):
         super().__init__()
         
         self.fun_uri = fun
-        self.name = g.get_name(fun)
+        self.name = g.label(fun)
         self._imp = imp
         self._map = None
         self.g = g

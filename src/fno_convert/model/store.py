@@ -18,10 +18,10 @@ class ParameterMapping:
         self.index = False
         self.keyvalue = False
         
-        if g.is_varpositional(mapping, par):
+        if g.is_list_mapping(mapping, par):
             self.index = True
             self.type.append(MappingType.LIST)
-        elif g.is_varkeyword(mapping, par):
+        elif g.is_keyvalue_mapping(mapping, par):
             self.keyvalue = True
             self.type.append(MappingType.KEYVALUE)
         

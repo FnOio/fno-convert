@@ -1,4 +1,4 @@
-import traceback
+import traceback, os
 from abc import ABC, abstractmethod
 from typing import List, Any
 from ..graph import FnOGraph
@@ -13,7 +13,7 @@ class GenericDescriptor(ABC):
 
         can_method = f'can_describe_{method_suffix}'
         describe_method = f'describe_{method_suffix}'
-
+        
         for descriptor in self.subscribed:
             can_fn = getattr(descriptor, can_method, None)
             describe_fn = getattr(descriptor, describe_method, None)
@@ -22,7 +22,7 @@ class GenericDescriptor(ABC):
                 if callable(describe_fn):
                     return describe_fn(resource)
 
-        raise ValueError(f"No descriptor could describe the {method_suffix}.")
+        return None
 
     @abstractmethod
     def _get_method_suffix(self) -> str:
@@ -34,10 +34,12 @@ class GenericDescriptor(ABC):
 class Descriptor:
     @staticmethod
     def describe(g: FnOGraph, resource: Any) -> Any:
+        workdir = os.getcwd()
+        
         descriptors: List[GenericDescriptor] = [
-            FileDescriptor(g),
-            CLIDescriptor(g),
-            ObjectDescriptor(g),
+            FileDescriptor(g, workdir),
+            CLIDescriptor(g, workdir),
+            ObjectDescriptor(g, workdir),
         ]
 
         for descriptor in descriptors:
@@ -48,7 +50,7 @@ class Descriptor:
                 traceback.print_exc()
                 continue  # Try next descriptor
 
-        raise ValueError("No available descriptors could describe the resource.")
+        return None
 
 
 class FileDescriptor(GenericDescriptor):
@@ -58,9 +60,13 @@ class FileDescriptor(GenericDescriptor):
         from .python import PythonDescriptor
         from .docker import DockerfileDescriptor
         self.subscribed = [
-            PythonDescriptor(g),
-            DockerfileDescriptor(g)
+            PythonDescriptor(g, workdir),
+            DockerfileDescriptor(g, workdir)
         ]
+    
+    def describe(self, file):
+        file = os.path.join(self.workdir, file)
+        return super().describe(file)
 
     def _get_method_suffix(self) -> str:
         return 'file'
@@ -72,7 +78,7 @@ class CLIDescriptor(GenericDescriptor):
 
         from .python import PythonDescriptor
         self.subscribed = [
-            PythonDescriptor(g),
+            PythonDescriptor(g, workdir),
         ]
 
     def _get_method_suffix(self) -> str:
@@ -85,7 +91,7 @@ class ObjectDescriptor(GenericDescriptor):
 
         from .python import PythonDescriptor
         self.subscribed = [
-            PythonDescriptor(g),
+            PythonDescriptor(g, workdir),
         ]
 
     def _get_method_suffix(self) -> str:

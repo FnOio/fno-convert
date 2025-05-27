@@ -18,17 +18,13 @@ src/fno_convert/builders/ldes.py
 src/fno_convert/builders/provo.py
 src/fno_convert/builders/python.py
 src/fno_convert/descriptors/__init__.py
-src/fno_convert/descriptors/command.py
 src/fno_convert/descriptors/docker.py
-src/fno_convert/descriptors/file.py
 src/fno_convert/descriptors/python.py
-src/fno_convert/descriptors/resource.py
 src/fno_convert/elk/__init__.py
 src/fno_convert/elk/elk_layout.js
 src/fno_convert/elk/package-lock.json
 src/fno_convert/elk/package.json
 src/fno_convert/executors/__init__.py
-src/fno_convert/executors/command.py
 src/fno_convert/executors/python.py
 src/fno_convert/executors/std.py
 src/fno_convert/executors/docker/__init__.py

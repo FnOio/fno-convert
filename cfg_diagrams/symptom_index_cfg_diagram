@@ -1,8 +1,7 @@
 digraph clustersymptom_index {
 	graph [label=symptom_index]
 	3 [label="#3
-DATA_PATH = 'dataset/Training.csv'
-data = read_csv(DATA_PATH).dropna(axis=1)
+data = read_csv(data_path).dropna(axis=1)
 symptom_labels = data.iloc[:, :-1].columns.values
 symptom_index = {}
 "]

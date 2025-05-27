@@ -6,7 +6,7 @@ from ...builders import FnOBuilder
 from ...mappers.python import PythonMapper
 from ...mappers.file import FileMapper
 
-NAME = Prefix.ns('doap').name
+NAME = Prefix.ns('rdfs').label
 FILE_PRED = Prefix.ns('fnoi').file
 MODULE_PRED = Prefix.ns('fnoi').module
 PACKAGE_PRED = Prefix.ns('fnoi').package

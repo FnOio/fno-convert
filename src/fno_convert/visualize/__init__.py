@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QGridLayout, QTabWidget
 
 from .flowctrl import ExeCtrlWidget
-from .load import ScrollWidget, Descripter
+from .load import ScrollWidget, Descriptor
 
 import os
 
@@ -21,7 +21,7 @@ class PY2RDFWindow(QMainWindow):
         # TODO Expand visualizer input with simple file
         codeViewer = ScrollWidget()
         rdfViewer = ScrollWidget()
-        descripter = Descripter()
+        descripter = Descriptor()
 
         layout1.addWidget(descripter, 0, 0, 1, 1)
         layout1.addWidget(codeViewer, 0, 1, 1, 4)

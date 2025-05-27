@@ -193,8 +193,7 @@ class PythonMapper:
         keyword = []
         defaults = {}
         
-        index_mapping = []
-        keyvalue_mapping = []
+        list_mapping = set()
         
         for i, arg in enumerate(args):
             name = arg['name'].lstrip('-')
@@ -209,7 +208,7 @@ class PythonMapper:
             
             if 'nargs' in arg:
                 # TODO what values are possible for nargs?
-                index_mapping.append(param)
+                list_mapping.add(param)
             
             if 'default' in arg:
                 defaults[param] = arg['default']
@@ -217,8 +216,7 @@ class PythonMapper:
         uri = FnOBuilder.describe_mapping(g, fun, imp, context,
                                     output=output,
                                     positional=positional, keyword=keyword,
-                                    args=index_mapping, kargs=keyvalue_mapping,
-                                    defaults=defaults)
+                                    args=list_mapping, defaults=defaults)
         
         return uri
     
@@ -321,7 +319,7 @@ class PythonMapper:
             SELECT ?type ?label ?module ?package ?file ?self_class WHERE {{
                 VALUES ?type {{ fnoi:PythonClass fnoi:PythonFunction fnoi:PythonMethod fnoi:PythonModule }}
                 <{s}> a ?type ;
-                      doap:name ?label ;
+                      rdfs:label ?label ;
                 OPTIONAL {{ <{s}> fnoi:module ?module . }}
                 OPTIONAL {{ <{s}> fnoi:package ?package . }}
                 OPTIONAL {{ <{s}> fnoi:file ?file . }}

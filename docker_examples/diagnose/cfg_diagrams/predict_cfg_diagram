@@ -1,6 +1,9 @@
 digraph cluster_ {
 	graph [label=_]
 	20 [label="#20
+parser = argparse.ArgumentParser(description=
+    'Predict diagnosis based on symptoms.')
+args = parser.parse_args()
 encoder = joblib.load('models/encoder.pkl')
 final_rf_model = joblib.load('models/rf_model.pkl')
 final_nb_model = joblib.load('models/nb_model.pkl')
