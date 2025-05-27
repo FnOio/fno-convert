@@ -152,7 +152,7 @@ class FnOBuilder():
         return uri
 
     @staticmethod
-    def describe_parameter(g: FnOGraph, uri, type, pred):
+    def describe_parameter(g: FnOGraph, uri, type, pred, req=None):
         """
         Describe a parameter.
 
@@ -172,6 +172,9 @@ class FnOBuilder():
             (uri, Prefix.ns('fno')["predicate"], pred if isinstance(pred, URIRef) else Prefix.base()[pred]),
             (uri, Prefix.ns('fno')["type"], type)
         ]
+        
+        if req is not None:
+            triples.append((uri, Prefix.ns('fno').required, Literal(req)))
 
         [ g.add(x) for x in triples ]
         
@@ -226,7 +229,7 @@ class FnOBuilder():
     ### IMPLEMENTATION MAPPING ###
     
     @staticmethod
-    def describe_mapping(g, f, imp=None, f_name=None, output=None,
+    def describe_mapping(g: FnOGraph, f, imp=None, f_name=None, output=None,
                          positional=[], keyword={}, 
                          args=set(), kargs=set(), 
                          self_output=None, 
@@ -320,7 +323,7 @@ class FnOBuilder():
 
             ])
 
-            if param in defaults:
+            if g.is_required(param) is None and param in defaults:
                 triples.append((param, Prefix.ns('fno')["required"], Literal(False)))
             else:
                 triples.append((param, Prefix.ns('fno')["required"], Literal(True)))

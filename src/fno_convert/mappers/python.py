@@ -156,7 +156,10 @@ class PythonMapper:
             argname = key.replace('-', '_')
             uri_to_argname[uri] = argname
             if g.is_list_mapping(map, uri):
-                parser.add_argument(f'--{key}', dest=argname, nargs='*')
+                if g.is_required(uri):
+                    parser.add_argument(f'--{key}', dest=argname, nargs='*')
+                else:
+                    parser.add_argument(f'--{key}', dest=argname, nargs='+')
             else:
                 parser.add_argument(f'--{key}', dest=argname)
 
@@ -171,8 +174,13 @@ class PythonMapper:
             argname = f'pos_{i}'
             val = getattr(args, argname, None)
             if val is not None:
-                result[uri] = val
-                used.add(uri)
+                if g.is_list_mapping(map, uri) and g.is_required(uri):
+                    if len(val) > 0:
+                        result[uri] = PythonMapper.value_to_term(g, val)
+                        used.add(uri)
+                else:
+                    result[uri] = PythonMapper.value_to_term(g, val)
+                    used.add(uri)
 
         for key, uri in keywords.items():
             if uri in used:
@@ -180,7 +188,7 @@ class PythonMapper:
             argname = key.replace('-', '_')
             val = getattr(args, argname, None)
             if val is not None:
-                result[uri] = val
+                result[uri] = PythonMapper.value_to_term(g, val)
                 used.add(uri)
         
         return result

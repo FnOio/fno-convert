@@ -238,6 +238,8 @@ class FnOGraph(Graph):
         except Exception as e:
             print(f"Error while querying function from name {name}: <{e}>")
             return
+    
+    ### PARAMETER ###
 
     def get_parameters(self, f, include_self=False) -> list[str]:
         """
@@ -317,6 +319,15 @@ class FnOGraph(Graph):
                 }}
             ''', initNs=Prefix.NAMESPACES)
         ]
+        return result[0] if len(result) == 1 else None
+    
+    def is_required(self, param) -> bool:
+        
+        result = [ x['req'].value for x in self.query(f"""
+            SELECT ?req WHERE {{
+                <{param}> fno:required ?req .
+            }}""", initNs=Prefix.NAMESPACES)]
+        
         return result[0] if len(result) == 1 else None
 
     def get_param_predicates(self, f) -> list[str]:
@@ -754,6 +765,18 @@ class FnOGraph(Graph):
         elif len(result) == 1:
             return result[0]
         return None, None
+    
+    def get_unmapped_parameters(self, comp, fun_uri):        
+        mapped = [ (x['call'], x['param']) for x in self.query(f"""
+            SELECT ?call ?param WHERE {{
+                <{comp}> fnoc:composedOf ?mapping .
+                ?mapping fnoc:mapTo ?mapto .
+                ?mapto fnoc:constituentFunction ?call ;
+                    fnoc:functionParameter ?param .
+            }}""", initNs=Prefix.NAMESPACES) ]
+    
+        mapped = [ param_uri for (call_uri, param_uri) in mapped if self.check_call(call_uri) == fun_uri ]
+        return [ param_uri for param_uri in self.get_parameters(fun_uri, include_self=True) if param_uri not in mapped ]
     
     ### TERMS ###
     

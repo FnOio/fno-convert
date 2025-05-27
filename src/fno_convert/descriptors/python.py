@@ -115,7 +115,9 @@ class PythonDescriptor:
         file_uri = FileMapper.uri(file_path)
         file_name, suff = os.path.splitext(os.path.basename(file_path))
         fun_uri = Prefix.base()[f"{file_name}_main"]
+        print(f"describing file {file_uri} ({file_path})")
         if not self.g.exists(file_uri):
+            print(f"\tNEW")
             ### IMPORT ###
             try:
                 self.importer.import_from_file(file_path)
@@ -136,7 +138,10 @@ class PythonDescriptor:
                 uri = URIRef(f"{fun_uri}Parameter{i}")
                 pred = arg["name"].lstrip('-').replace('-', '_')
                 type = Prefix.ns('xsd').string
-                FnOBuilder.describe_parameter(self.g, uri, type, pred)
+                if 'nargs' in arg and arg['nargs'] == '*':
+                    FnOBuilder.describe_parameter(self.g, uri, type, pred, False)
+                else:
+                    FnOBuilder.describe_parameter(self.g, uri, type, pred)
                 parameters.append(uri)
             
             # FnO Output

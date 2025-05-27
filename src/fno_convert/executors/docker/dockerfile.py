@@ -143,7 +143,7 @@ class DockerfileExecutor(Executer):
             # Create a new function based on the entrypoint cmd
             # Copy the unmapped parameters
             param_uris = {}
-            params = self.pg.get_parameters(fun_uri, include_self=True)
+            params = self.pg.get_unmapped_parameters(comp_uri, fun_uri)
             for i, param in enumerate(params):
                 uri = Prefix.base()[f'{self.image_tag}Parameter{i}']
                 FnOBuilder.describe_parameter(self.pg, uri, 
