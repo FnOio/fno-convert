@@ -1,0 +1,17 @@
+digraph clusterinit_dl {
+	graph [label=init_dl]
+	3 [label="#3
+\"\"\"
+    Initialize data loaders with 4 dimensions : categorical dataframe, numerical dataframe and target values (efs and efs_time).
+    Notice that efs_time is log-transformed.
+    Fix batch size to 2048 and return dataloader for training or validation depending on training value.
+    \"\"\"
+ds_train = TensorDataset(torch.tensor(X_cat, dtype=torch.long), torch.
+    tensor(X_num, dtype=torch.float32), torch.tensor(df.efs_time.values,
+    dtype=torch.float32).log(), torch.tensor(df.efs.values, dtype=torch.long))
+bs = 2048
+dl_train = torch.utils.data.DataLoader(ds_train, batch_size=bs, pin_memory=
+    True, shuffle=training)
+return dl_train
+"]
+}

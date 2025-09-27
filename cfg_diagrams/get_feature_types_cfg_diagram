@@ -1,0 +1,14 @@
+digraph clusterget_feature_types {
+	graph [label=get_feature_types]
+	3 [label="#3
+\"\"\"
+    Utility function to return categorical and numerical column names.
+    \"\"\"
+categorical_cols = [col for i, col in enumerate(train.columns) if (train[
+    col].dtype == 'object') | (2 < train[col].nunique() < 25)]
+RMV = ['ID', 'efs', 'efs_time', 'y']
+FEATURES = [c for c in train.columns if not c in RMV]
+numerical = [i for i in FEATURES if i not in categorical_cols]
+return categorical_cols, numerical
+"]
+}

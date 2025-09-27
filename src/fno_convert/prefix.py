@@ -1,4 +1,4 @@
-from rdflib import Namespace
+from rdflib import Namespace, URIRef
 
 # Standard RDF prefixes
 std_prefixes = {
@@ -154,6 +154,27 @@ class Prefix:
             str: The base URI.
         """
         return Prefix.ns('tree')
+    
+    @staticmethod
+    def get_name(uri: URIRef) -> str:
+        """
+        Extracts the local name from a URIRef based on known namespaces.
+        
+        Args:
+            uri: The URIRef to process.
+            namespaces: A mapping of prefixes -> Namespace.
+            
+        Returns:
+            The local name (without namespace prefix). 
+            If no namespace matches, returns the full URI string.
+        """
+        uri_str = str(uri)
+        for ns in Prefix.NAMESPACES.values():
+            ns_str = str(ns)
+            if uri_str.startswith(ns_str):
+                return uri_str[len(ns_str):]
+        # Fallback: try splitting by '#' or '/' if no namespace matched
+        return uri_str.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
     
     @staticmethod
     def uri_to_str(uri):

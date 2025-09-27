@@ -1,0 +1,42 @@
+digraph clusterget_categoricals {
+	graph [label=get_categoricals]
+	3 [label="#3
+\"\"\"
+    Remove constant categorical columns and transform them using LabelEncoder.
+    Return the label-transformers for each categorical column, categorical dataframes and numerical columns.
+    \"\"\"
+categorical_cols, numerical = get_feature_types(train)
+remove = []
+"]
+	4 [label="#4
+for col in categorical_cols:
+"]
+	5 [label="#5
+if train[col].nunique() == 1:
+"]
+	7 [label="#7
+remove.append(col)
+"]
+	8 [label="#8
+ind = ~val[col].isin(train[col])
+if ind.any():
+"]
+	9 [label="#9
+val.loc[ind, col] = np.nan
+"]
+	9 -> 4 [label=""]
+	8 -> 9 [label="ind.any()"]
+	8 -> 4 [label="(not ind.any())"]
+	7 -> 8 [label=""]
+	5 -> 7 [label="train[col].nunique() == 1"]
+	5 -> 8 [label="(train[col].nunique() != 1)"]
+	4 -> 5 [label=categorical_cols]
+	6 [label="#6
+categorical_cols = [col for col in categorical_cols if col not in remove]
+transformers, X_cat_train = get_X_cat(train, categorical_cols)
+_, X_cat_val = get_X_cat(val, categorical_cols, transformers)
+return X_cat_train, X_cat_val, numerical, transformers
+"]
+	4 -> 6 [label=""]
+	3 -> 4 [label=""]
+}

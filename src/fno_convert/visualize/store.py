@@ -29,10 +29,7 @@ class StoreGraphicsItem(GraphicsObject):
         self.store.valueSet.connect(self.updateBrush)
         self.updateBrush()
 
-        if terminal.is_output:
-            name = terminal.name if terminal.name == "self_output" else "out"
-        else:
-            name = terminal.name
+        name = terminal.name
         self.label = QGraphicsTextItem(name, self.box)
         self.label.setScale(0.7)
         self.label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)

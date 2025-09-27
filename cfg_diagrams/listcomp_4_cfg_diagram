@@ -1,0 +1,20 @@
+digraph clusterlistcomp_4 {
+	graph [label=listcomp_4]
+	1 [label="#1
+_ = []
+"]
+	2 [label="#2
+for col in categorical_cols:
+"]
+	3 [label="#3
+if col not in remove:_.append(col)
+"]
+	3 -> 2 [label="(col in remove)"]
+	3 -> 2 [label="col not in remove"]
+	2 -> 3 [label=categorical_cols]
+	4 [label="#4
+return _
+"]
+	2 -> 4 [label=""]
+	1 -> 2 [label=""]
+}

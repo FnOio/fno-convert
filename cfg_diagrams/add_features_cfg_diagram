@@ -1,0 +1,12 @@
+digraph clusteradd_features {
+	graph [label=add_features]
+	3 [label="#3
+\"\"\"
+    Create some new features to help the model focus on specific patterns.
+    \"\"\"
+df['is_cyto_score_same'] = (df['cyto_score'] == df['cyto_score_detail']
+    ).astype(int)
+df['year_hct'] -= 2000
+return df
+"]
+}

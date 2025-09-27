@@ -1,0 +1,20 @@
+digraph clusterlistcomp_2 {
+	graph [label=listcomp_2]
+	1 [label="#1
+_ = []
+"]
+	2 [label="#2
+for c in train.columns:
+"]
+	3 [label="#3
+if not c in RMV:_.append(c)
+"]
+	3 -> 2 [label="(not not c in RMV)"]
+	3 -> 2 [label="not c in RMV"]
+	2 -> 3 [label="train.columns"]
+	4 [label="#4
+return _
+"]
+	2 -> 4 [label=""]
+	1 -> 2 [label=""]
+}

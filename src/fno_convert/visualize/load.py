@@ -13,7 +13,7 @@ import os, sys, inspect, time
 class Descriptor(QWidget):
 
     file_loaded = pyqtSignal(str)
-    resource_described = pyqtSignal(FnOGraph, URIRef, URIRef, URIRef)
+    resource_described = pyqtSignal(FnOGraph, URIRef)
 
     def __init__(self) -> None:
         super().__init__()
@@ -77,6 +77,10 @@ class Descriptor(QWidget):
 
         # Aggregate all function-mapping-implementation triplets
         for fun_uri in self.graph.functions():
+            fun_name = self.graph.label(fun_uri)
+            self.triplet_select.addItem(fun_name, fun_uri)
+            
+        """for fun_uri in self.graph.functions():
             for map_uri, imp_uri in self.graph.fun_to_imp(fun_uri):
                 self.triplets.append((fun_uri, map_uri, imp_uri))
 
@@ -88,22 +92,23 @@ class Descriptor(QWidget):
             parts = [f"Function: {fun_name}"]
             if map_name:
                 parts.append(f"Mapping: {map_name}")
-            parts.append(f"Implementation: {imp_name}")
+            if imp_name:
+                parts.append(f"Implementation: {imp_name}")
 
             label = " | ".join(parts)
-            self.triplet_select.addItem(label, (fun_uri, map_uri, imp_uri))
+            self.triplet_select.addItem(label, (fun_uri, map_uri, imp_uri))"""
 
     def select_function(self):
         if not self.file_path:
-            self.show_message("Please select a file first.", QMessageBox.Warning)
+            self.show_message("Please select a file first.", QMessageBox.Icon.Warning)
             return
 
         if not self.graph or not self.triplet_select.currentData():
-            self.show_message("Please select a valid function triplet.", QMessageBox.Warning)
+            self.show_message("Please select a valid function triplet.", QMessageBox.Icon.Warning)
             return
 
-        fun_uri, map_uri, imp_uri = self.triplet_select.currentData()
-        self.resource_described.emit(self.graph, fun_uri, map_uri, imp_uri)
+        fun_uri = self.triplet_select.currentData()
+        self.resource_described.emit(self.graph, fun_uri)
 
     def show_message(self, message, icon):
         msg_box = QMessageBox()

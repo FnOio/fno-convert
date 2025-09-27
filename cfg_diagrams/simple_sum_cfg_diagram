@@ -1,6 +1,0 @@
-digraph clustersimple_sum {
-	graph [label=simple_sum]
-	3 [label="#3
-return a + b
-"]
-}

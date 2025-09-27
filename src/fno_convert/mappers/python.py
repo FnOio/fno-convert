@@ -8,8 +8,9 @@ from ..prefix import Prefix
 from ..builders import PythonBuilder, FnOBuilder
 from ..graph import FnOGraph, get_name, create_rdf_list
 
-_toPythonMapping[Prefix.ns('xsd').string] = str
-_toPythonMapping[Prefix.ns('xsd').boolean] = bool
+_toPythonMapping[Prefix.ns("xsd").string] = str
+_toPythonMapping[Prefix.ns("xsd").boolean] = bool
+
 
 def load_function_from_source(file_path, function_name):
     """
@@ -22,11 +23,11 @@ def load_function_from_source(file_path, function_name):
     Returns:
         function: The loaded function object.
     """
-    module_name = file_path.split('/')[-1][:-len('.py')]
+    module_name = file_path.split("/")[-1][: -len(".py")]
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     if spec is None:
         raise ImportError(f"Cannot find module spec for {file_path}")
-    
+
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
@@ -37,11 +38,13 @@ def load_function_from_source(file_path, function_name):
     except AttributeError as e:
         return
 
+
 def is_of_std_lit_type(instance):
     """
     Check if the instance is of a type that RDFlib recognizes as a standard literal type.
     """
     return type(instance) in _toPythonMapping.values()
+
 
 def is_std_lit_type(instance):
     """
@@ -51,13 +54,13 @@ def is_std_lit_type(instance):
 
 
 class PythonMapper:
-    
+
     @staticmethod
     def uri(name, m_name=None, p_name=None, f_name=None):
-        combined = ''.join(str(item) for item in [m_name, p_name, f_name] if item)
+        combined = "".join(str(item) for item in [m_name, p_name, f_name] if item)
         unique_hash = hashlib.sha256(combined.encode()).hexdigest()[:8]
-        return Prefix.ns('python')[f"{name}{unique_hash}"]
-    
+        return Prefix.ns("python")[f"{name}{unique_hash}"]
+
     @staticmethod
     def obj_to_fno(g: FnOGraph, imp, imp_name=None, self=None, static=None):
         """
@@ -77,27 +80,27 @@ class PythonMapper:
             imp = Any
         elif imp is None:
             imp = type(None)
-            
+
         for type_uri, imp_type in _toPythonMapping.items():
             if imp == imp_type:
                 return type_uri
-        
-        imp_name = getattr(imp, '__name__', getattr(type(imp), '__name__', str(imp)))
-    
+
+        imp_name = getattr(imp, "__name__", getattr(type(imp), "__name__", str(imp)))
+
         m_name = p_name = f_name = doc = None
-        
+
         ### IMPLEMENTATION METADATA ###
-        
+
         # Module & package
         if isinstance(imp, ModuleType):
             m_name = Literal(imp.__name__)
-            if hasattr(imp, '__package__'):
+            if hasattr(imp, "__package__"):
                 p_name = Literal(imp.__package__)
-        if hasattr(imp, "__module__"):
+        elif hasattr(imp, "__module__"):
             m_name = Literal(imp.__module__)
-            if '.' in imp.__module__:
-                p_name = imp.__module__.split('.')[0]
-        
+            if "." in imp.__module__:
+                p_name = imp.__module__.split(".")[0]
+
         # File
         try:
             module_file = inspect.getfile(imp)
@@ -107,13 +110,13 @@ class PythonMapper:
                 f_name = module_file
         except TypeError as e:
             pass
-        
+
         # Docstring
-        if hasattr(imp, '__doc__'):
+        if hasattr(imp, "__doc__"):
             doc = imp.__doc__
-        
+
         ### DESCRIBE IMPLEMENTATION ###
-        
+
         imp_uri = PythonMapper.uri(imp_name, m_name, p_name, f_name)
         PythonBuilder.describe_imp(g, imp_uri, imp_name, m_name, p_name, f_name, doc)
 
@@ -129,9 +132,9 @@ class PythonMapper:
             PythonBuilder.describe_function(g, imp_uri)
 
         return imp_uri
-    
+
     ### MAPPINGS ###
-    
+
     @staticmethod
     def parse_args_with_map(g: FnOGraph, map, input_parts):
         positionals = g.get_positionals(map)
@@ -144,24 +147,24 @@ class PythonMapper:
 
         # Add positional arguments
         for i, uri in enumerate(positionals):
-            argname = f'pos_{i}'
+            argname = f"pos_{i}"
             uri_to_argname[uri] = argname
             if g.is_list_mapping(map, uri):
-                parser.add_argument(argname, nargs='*')
+                parser.add_argument(argname, nargs="*")
             else:
                 parser.add_argument(argname)
 
         # Add keyword arguments
         for key, uri in keywords.items():
-            argname = key.replace('-', '_')
+            argname = key.replace("-", "_")
             uri_to_argname[uri] = argname
             if g.is_list_mapping(map, uri):
                 if g.is_required(uri):
-                    parser.add_argument(f'--{key}', dest=argname, nargs='*')
+                    parser.add_argument(f"--{key}", dest=argname, nargs="*")
                 else:
-                    parser.add_argument(f'--{key}', dest=argname, nargs='+')
+                    parser.add_argument(f"--{key}", dest=argname, nargs="+")
             else:
-                parser.add_argument(f'--{key}', dest=argname)
+                parser.add_argument(f"--{key}", dest=argname)
 
         # Parse
         args = parser.parse_args(input_parts)
@@ -171,7 +174,7 @@ class PythonMapper:
         # Resolve terminal values
         used = set()
         for i, uri in enumerate(positionals):
-            argname = f'pos_{i}'
+            argname = f"pos_{i}"
             val = getattr(args, argname, None)
             if val is not None:
                 if g.is_list_mapping(map, uri) and g.is_required(uri):
@@ -185,51 +188,58 @@ class PythonMapper:
         for key, uri in keywords.items():
             if uri in used:
                 continue  # Skip if already used as positional
-            argname = key.replace('-', '_')
+            argname = key.replace("-", "_")
             val = getattr(args, argname, None)
             if val is not None:
                 result[uri] = PythonMapper.value_to_term(g, val)
                 used.add(uri)
-        
+
         return result
-        
+
     @staticmethod
     def map_with_parse_args(g: FnOGraph, fun, imp, output, args):
         context = get_name(fun)
-        
+
         positional = []
         keyword = []
         defaults = {}
-        
+
         list_mapping = set()
-        
+
         for i, arg in enumerate(args):
-            name = arg['name'].lstrip('-')
-            param = g.get_predicate_param(fun, name.replace('-', '_'))
-            
-            if not arg['name'].startswith('-'):
+            name = arg["name"].lstrip("-")
+            param = g.get_param(fun, name.replace("-", "_"))
+
+            if not arg["name"].startswith("-"):
                 # Positional
                 positional.append(param)
             else:
                 # Keyword
                 keyword.append((param, name))
-            
-            if 'nargs' in arg:
+
+            if "nargs" in arg:
                 # TODO what values are possible for nargs?
                 list_mapping.add(param)
-            
-            if 'default' in arg:
-                defaults[param] = arg['default']
-        
-        uri = FnOBuilder.describe_mapping(g, fun, imp, context,
-                                    output=output,
-                                    positional=positional, keyword=keyword,
-                                    args=list_mapping, defaults=defaults)
-        
+
+            if "default" in arg:
+                defaults[param] = arg["default"]
+
+        uri = FnOBuilder.describe_mapping(
+            g,
+            fun,
+            imp,
+            context,
+            positional=positional,
+            keyword=keyword,
+            args=list_mapping,
+            output=output,
+            defaults=defaults,
+        )
+
         return uri
-    
+
     @staticmethod
-    def map_with_sig(g: FnOGraph, f, s, imp, f_name, output, self_output): 
+    def map_with_sig(g: FnOGraph, f, s, imp, f_name, output, context):
         sig = inspect.signature(f)
         params = sig.parameters
 
@@ -242,7 +252,9 @@ class PythonMapper:
 
         for name, param in params.items():
             # Get the parameter linked to this predicate
-            par = g.get_predicate_param(s, name)
+            par = g.get_param(s, name)
+            if context and par == context[0]:
+                continue
             if param.kind == inspect.Parameter.POSITIONAL_ONLY:
                 positional.append(par)
             if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
@@ -254,18 +266,30 @@ class PythonMapper:
                 args.add(par)
             elif param.kind == inspect.Parameter.VAR_KEYWORD:
                 kargs.add(par)
-            
+
             if param.default is not inspect._empty:
                 defaults[par] = PythonMapper.value_to_term(g, param.default)
 
-        FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional, keyword, args, kargs, self_output, defaults)
-        
+        FnOBuilder.describe_mapping(
+            g,
+            s,
+            imp,
+            f_name,
+            positional,
+            keyword,
+            args,
+            kargs,
+            output=output,
+            context=context,
+            defaults=defaults,
+        )
+
     @staticmethod
-    def map_with_num(g: FnOGraph, s, keywords, imp, f_name, output, self_output):
+    def map_with_num(g: FnOGraph, s, keywords, imp, f_name, output, context):
         """
         Maps function parameters and outputs to RDF representations based on the number of parameters and keywords.
 
-        This method maps function parameters and outputs to RDF representations 
+        This method maps function parameters and outputs to RDF representations
         based on the number of parameters and keywords using FnO descriptors.
 
         Parameters:
@@ -283,19 +307,26 @@ class PythonMapper:
         self_output : str
             The unique identifier (URI) representing the self parameter output of the function.
         """
-        positional = []
-        self_param = g.get_self(s)
-        if self_param is not None:
-            positional.append(self_param) 
-        positional.extend(g.get_parameters(s))
+        positional = [
+            par for par in g.get_parameters(s) if not context or par != context[0]
+        ]
         keyword = []
         for pred in keywords:
-            par = g.get_predicate_param(s, pred.arg)
+            par = g.get_param(s, pred.arg)
             if par is not None:
                 keyword.append((par, pred.arg))
 
-        FnOBuilder.describe_mapping(g, s, imp, f_name, output, positional=positional, keyword=keyword, self_output=self_output)
-    
+        FnOBuilder.describe_mapping(
+            g,
+            s,
+            imp,
+            f_name,
+            positional=positional,
+            keyword=keyword,
+            output=output,
+            context=context,
+        )
+
     @staticmethod
     def fno_to_obj(g: FnOGraph, s):
         """
@@ -310,42 +341,49 @@ class PythonMapper:
         """
         if s is None:
             return Any
-        
-        if s.split('#')[-1].startswith('NoneType'):
+
+        if s.split("#")[-1].startswith("NoneType"):
             return NoneType
-        
+
         if s in _toPythonMapping:
             return _toPythonMapping[s]
-                
+
         result = [
-            (x['label'].value, 
-             x['module'].value if x['module'] is not None else None, 
-             x['package'].value if x['package'] is not None else None,
-             x['file'].value if x['file'] is not None else None,
-             x['self_class'])
-            for x in g.query(f'''
+            (
+                x["label"].value,
+                x["module"].value if x["module"] is not None else None,
+                x["package"].value if x["package"] is not None else None,
+                x["file"] if x["file"] is not None else None,
+                x["self_class"],
+            )
+            for x in g.query(
+                f"""
             SELECT ?type ?label ?module ?package ?file ?self_class WHERE {{
                 VALUES ?type {{ fnoi:PythonClass fnoi:PythonFunction fnoi:PythonMethod fnoi:PythonModule }}
                 <{s}> a ?type ;
-                      rdfs:label ?label ;
+                      doap:name ?label ;
                 OPTIONAL {{ <{s}> fnoi:module ?module . }}
                 OPTIONAL {{ <{s}> fnoi:package ?package . }}
                 OPTIONAL {{ <{s}> fnoi:file ?file . }}
                 OPTIONAL {{ <{s}> fnoi:methodOf ?self_class . }}
-            }}''', initNs=Prefix.NAMESPACES)]
-        
+            }}""",
+                initNs=Prefix.NAMESPACES,
+            )
+        ]
+
         try:
             if result:
                 label, module, package, file, self_class = result[0]
-                
+
                 if g.is_pythonmodule(s):
                     return importlib.import_module(module, package)
-                
+
                 if file is not None:
+                    file = file.removeprefix("file://")
                     return load_function_from_source(file, label)
                 if module is not None:
                     if module == "builtins" and hasattr(__builtins__, label):
-                        return getattr(__builtins__, label)   
+                        return getattr(__builtins__, label)
                     module_obj = importlib.import_module(module, package)
                     if hasattr(module_obj, label):
                         return getattr(module_obj, label)
@@ -354,11 +392,13 @@ class PythonMapper:
                     if hasattr(self_obj, label):
                         return getattr(self_obj, label)
         except Exception as e:
-            print(f"Error while trying to get implementation from {s.split('#')[-1]}: {e}")
+            print(
+                f"Error while trying to get implementation from {s.split('#')[-1]}: {e}"
+            )
             return Any
-            
+
         return Any
-    
+
     @staticmethod
     def value_to_term(g: FnOGraph, inst):
         """
@@ -370,21 +410,23 @@ class PythonMapper:
         Returns:
             tuple: A tuple containing the RDF literal and the type description graph.
         """
-        
+
         if isinstance(inst, URIRef):
             return inst
         if isinstance(inst, list):
-            return create_rdf_list(g, [ PythonMapper.value_to_term(g, el) for el in inst ]).uri
+            return create_rdf_list(
+                g, [PythonMapper.value_to_term(g, el) for el in inst]
+            ).uri
         if inst is None:
             return Literal(None)
         if type(inst) in _toPythonMapping.values():
             return Literal(inst)
-        
+
         try:
             return PythonMapper.obj_to_fno(g, inst)
         except:
             inst_type = PythonMapper.obj_to_fno(g, type(inst))
-        
+
         return Literal(inst, datatype=inst_type)
 
     @staticmethod
@@ -395,13 +437,13 @@ class PythonMapper:
             return term
         if isinstance(term, BNode):
             if g.is_list(term):
-                return [ PythonMapper.term_to_value(g, x) for x in g.to_list(term) ]
-        if term.datatype is None and term.value == 'None':
+                return [PythonMapper.term_to_value(g, x) for x in g.to_list(term)]
+        if term.datatype is None and term.value == "None":
             return None
-        if term.datatype is Prefix.ns('rdf').Seq:
+        if term.datatype is Prefix.ns("rdf").Seq:
             return ast.literal_eval(term.value)
         return term.value
-    
+
     @staticmethod
     def any(g: FnOGraph) -> URIRef:
         """

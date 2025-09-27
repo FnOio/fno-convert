@@ -39,6 +39,10 @@ cf:if a fno:Function ;
       fno:returns [ a rdf:Seq ;
                     rdf:_2 cf:BoolOutput ] .
 
+cf:TestParameter a fno:Parameter ;
+       fno:predicate cf:test ;
+       fno:required "True"^^xsd:bool .
+
 cf:BoolOutput a fno:Output ;
               fno:predicate cf:bool ;
-              fno:type ptype:bool .
+              fno:type xsd:bool .

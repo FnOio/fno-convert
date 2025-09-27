@@ -1,6 +1,0 @@
-digraph clustersort_texts {
-	graph [label=sort_texts]
-	3 [label="#3
-return my_sort(text1) + my_sort(text2)
-"]
-}

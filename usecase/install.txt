@@ -1,0 +1,4 @@
+pip install numpy pandas matplotlib torch scikit-learn
+pip install pytorch-lightning
+pip install lifelines
+pip install pytorch-tabular

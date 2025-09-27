@@ -1,0 +1,403 @@
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix ex: <http://www.example.com#> .
+@prefix fno: <https://w3id.org/function/ontology#> .
+@prefix fnoc: <https://w3id.org/function/vocabulary/composition#> .
+@prefix fnoi: <https://w3id.org/function/vocabulary/implementation#> .
+@prefix fnom: <https://w3id.org/function/vocabulary/mapping#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix py: <http://www.example.com/pythonfunction#> .
+@prefix python: <http://www.example.com/python#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:appendMapping a fno:Mapping ;
+    fno:function ex:append ;
+    fno:implementation python:appende3b0c442 ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "append" ] ;
+    fno:parameterMapping [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:appendParameter0 ;
+            fnom:implementationParameterPosition 0 ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:appendParameterSelf ;
+            fnom:implementationParameterPosition 1 ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput ex:appendOutput ] .
+
+ex:create_comp_3Composition a fno:Composition ;
+    fnoc:composedOf [ fnoc:mapFromTerm "create_comp_3Result" ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:create_comp_3 ;
+                    fnoc:functionOutput ex:create_comp_3Output ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:create_comp_3 ;
+                    fnoc:functionParameter ex:create_comp_3Parameter2 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionParameter ex:listcomp_1Parameter1 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:create_comp_3 ;
+                    fnoc:functionParameter ex:create_comp_3Parameter1 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionParameter ex:listcomp_1Parameter0 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionOutput ex:listcomp_1Output0 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:create_comp_3 ;
+                    fnoc:functionOutput ex:create_comp_3Output ] ] ;
+    fnoc:represents ex:create_comp_3 ;
+    fnoc:start ex:listcomp_1 .
+
+ex:create_comp_3Mapping a fno:Mapping ;
+    fno:function ex:create_comp_3 ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "create_comp_3" ] ;
+    fno:parameterMapping [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter1 ;
+            fnom:implementationParameterPosition 1 ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter0 ;
+            fnom:implementationProperty "x" ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter2 ;
+            fnom:implementationProperty "test" ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter1 ;
+            fnom:implementationProperty "values" ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter0 ;
+            fnom:implementationParameterPosition 0 ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:create_comp_3Parameter2 ;
+            fnom:implementationParameterPosition 2 ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput ex:create_comp_3Output ] .
+
+ex:listMapping a fno:Mapping ;
+    fno:function py:list ;
+    fno:implementation python:liste513fb1f ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "list" ] ;
+    fno:parameterMapping [ a fnom:ListMapping,
+                fnom:PositionParameterMapping ;
+            fnom:functionParameter py:Elements ;
+            fnom:implementationParameterPosition 0 ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput py:ListOutput ] .
+
+ex:listcomp_1Composition a fno:Composition ;
+    fnoc:composedOf [ fnoc:mapFor [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionParameter ex:listcomp_1Parameter0 ;
+                    fnoc:key 0 ;
+                    fnoc:mappingStrategy fnoc: ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter0 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionOutput ex:listcomp_1_loop_2Output0 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionOutput ex:listcomp_1Output0 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:list_1 ;
+                    fnoc:functionOutput py:ListOutput ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter1 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionOutput ex:listcomp_1_loop_2Output0 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter1 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1 ;
+                    fnoc:functionParameter ex:listcomp_1Parameter1 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter2 ] ] ;
+    fnoc:represents ex:listcomp_1 ;
+    fnoc:start ex:list_1 .
+
+ex:listcomp_1Mapping a fno:Mapping ;
+    fno:function ex:listcomp_1 ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "listcomp_1" ] ;
+    fno:parameterMapping [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1Parameter1 ;
+            fnom:implementationParameterPosition 1 ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1Parameter1 ;
+            fnom:implementationProperty "test" ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1Parameter0 ;
+            fnom:implementationParameterPosition 0 ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1Parameter0 ;
+            fnom:implementationProperty "values" ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput ex:listcomp_1Output0 ] .
+
+ex:listcomp_1_branch_3Composition a fno:Composition ;
+    fnoc:composedOf [ fnoc:mapIf [ fnoc:composition [ a fno:Composition ;
+                            fnoc:composedOf [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                                            fnoc:functionParameter ex:listcomp_1_branch_3Parameter1 ] ;
+                                    fnoc:mapTo [ fnoc:constituentFunction ex:append_1 ;
+                                            fnoc:functionParameter ex:appendParameterSelf ] ],
+                                [ fnoc:mapFrom [ fnoc:constituentFunction ex:append_1 ;
+                                            fnoc:functionOutput ex:appendOutput ] ;
+                                    fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                                            fnoc:functionOutput ex:listcomp_1_branch_3Output0 ] ],
+                                [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                                            fnoc:functionParameter ex:listcomp_1_branch_3Parameter0 ] ;
+                                    fnoc:mapTo [ fnoc:constituentFunction ex:append_1 ;
+                                            fnoc:functionParameter ex:appendParameter0 ] ] ;
+                            fnoc:start ex:append_1 ] ;
+                    fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                    fnoc:functionParameter ex:listcomp_1_branch_3Test ] ] ;
+    fnoc:represents ex:listcomp_1_branch_3 .
+
+ex:listcomp_1_branch_3Mapping a fno:Mapping ;
+    fno:function ex:listcomp_1_branch_3 ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "listcomp_1_branch_3" ] ;
+    fno:parameterMapping [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_branch_3Parameter1 ;
+            fnom:implementationParameterPosition 1 ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_branch_3Parameter0 ;
+            fnom:implementationProperty "x" ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_branch_3Parameter1 ;
+            fnom:implementationProperty "_" ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_branch_3Parameter0 ;
+            fnom:implementationParameterPosition 0 ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput ex:listcomp_1_branch_3Output0 ] .
+
+ex:listcomp_1_loop_2Composition a fno:Composition ;
+    fnoc:composedOf [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                    fnoc:functionOutput ex:listcomp_1_branch_3Output0 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionOutput ex:listcomp_1_loop_2Output0 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter1 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                    fnoc:functionParameter ex:listcomp_1_branch_3Parameter1 ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter2 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                    fnoc:functionParameter ex:listcomp_1_branch_3Test ] ],
+        [ fnoc:mapFrom [ fnoc:constituentFunction ex:listcomp_1_loop_2 ;
+                    fnoc:functionParameter ex:listcomp_1_loop_2Parameter0 ] ;
+            fnoc:mapTo [ fnoc:constituentFunction ex:listcomp_1_branch_3 ;
+                    fnoc:functionParameter ex:listcomp_1_branch_3Parameter0 ] ] ;
+    fnoc:represents ex:listcomp_1_loop_2 ;
+    fnoc:start ex:listcomp_1_branch_3 .
+
+ex:listcomp_1_loop_2Mapping a fno:Mapping ;
+    fno:function ex:listcomp_1_loop_2 ;
+    fno:methodMapping [ a fnom:StringMethodMapping ;
+            fnom:method-name "listcomp_1_loop_2" ] ;
+    fno:parameterMapping [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter2 ;
+            fnom:implementationProperty "test" ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter0 ;
+            fnom:implementationProperty "x" ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter2 ;
+            fnom:implementationParameterPosition 2 ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter0 ;
+            fnom:implementationParameterPosition 0 ],
+        [ a fnom:PositionParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter1 ;
+            fnom:implementationParameterPosition 1 ],
+        [ a fnom:PropertyParameterMapping ;
+            fnom:functionParameter ex:listcomp_1_loop_2Parameter1 ;
+            fnom:implementationProperty "_" ] ;
+    fno:returnMapping [ a fnom:DefaultReturnMapping ;
+            fnom:functionOutput ex:listcomp_1_loop_2Output0 ] .
+
+python:appende3b0c442 a fnoi:Implementation ;
+    doap:name "append" .
+
+python:liste513fb1f a fnoi:Implementation,
+        fnoi:PythonClass,
+        fnoi:PythonFunction ;
+    dcterms:description """Built-in mutable sequence.
+
+If no argument is given, the constructor creates a new empty list.
+The argument must be an iterable if specified.""" ;
+    doap:name "list" ;
+    fnoi:module "builtins" .
+
+ex:append a prov:Entity,
+        fno:Function ;
+    rdfs:label "append" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 ex:appendParameterSelf ;
+            rdf:_2 ex:appendParameter0 ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 ex:appendSelfOutput ;
+            rdf:_2 ex:appendOutput ] .
+
+ex:appendSelfOutput a fno:Output ;
+    fno:predicate ex:self_output ;
+    fno:type ex:appendSelfOutput .
+
+ex:list_1 fnoc:applies py:list ;
+    fnoc:next ex:listcomp_1_loop_2 .
+
+python:Anyf8fd8e84 a fnoi:Implementation,
+        fnoi:PythonClass,
+        fnoi:PythonFunction ;
+    dcterms:description """Special type indicating an unconstrained type.
+
+    - Any is compatible with every type.
+    - Any assumed to have all methods.
+    - All values assumed to be instances of Any.
+
+    Note that all the above statements are true from the point of view of
+    static type checkers. At runtime, Any should not be used with instance
+    checks.
+    """ ;
+    doap:name "Any" ;
+    fnoi:module "typing" .
+
+py:Elements a fno:Parameter ;
+    fno:predicate py:elements ;
+    fno:required true .
+
+py:list a prov:Entity,
+        fno:Function ;
+    rdfs:label "list" ;
+    dcterms:descrition "ask GPT for description" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 py:Elements ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 py:ListOutput ] .
+
+ex:appendOutput a fno:Output ;
+    fno:predicate ex:appendResult ;
+    fno:type python:Anyf8fd8e84 .
+
+ex:appendParameter0 a fno:Parameter ;
+    fno:predicate ex:param0 ;
+    fno:required true ;
+    fno:type python:Anyf8fd8e84 .
+
+ex:create_comp_3Parameter0 a fno:Parameter ;
+    fno:predicate ex:x ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1_branch_3Test a fno:Parameter ;
+    fno:predicate fno:test ;
+    fno:required true ;
+    fno:type xsd:boolean .
+
+py:ListOutput a fno:Output ;
+    fno:predicate py:listResult ;
+    fno:type rdf:List .
+
+ex:appendParameterSelf a fno:Parameter ;
+    fno:predicate ex:self ;
+    fno:required true ;
+    fno:type ex:appendParameterSelf .
+
+ex:append_1 fnoc:applies ex:append .
+
+ex:create_comp_3Output a fno:Output ;
+    fno:predicate ex:create_comp_3Result ;
+    fno:type ex:any .
+
+ex:create_comp_3Parameter1 a fno:Parameter ;
+    fno:predicate ex:values ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:create_comp_3Parameter2 a fno:Parameter ;
+    fno:predicate ex:test ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1Output0 a fno:Output ;
+    fno:predicate ex:list ;
+    fno:type ex:any .
+
+ex:listcomp_1_branch_3Output0 a fno:Output ;
+    fno:predicate ex:_ ;
+    fno:type ex:any .
+
+ex:listcomp_1Parameter0 a fno:Parameter ;
+    fno:predicate ex:values ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1Parameter1 a fno:Parameter ;
+    fno:predicate ex:test ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1_branch_3Parameter0 a fno:Parameter ;
+    fno:predicate ex:x ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1_branch_3Parameter1 a fno:Parameter ;
+    fno:predicate ex:_ ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1_loop_2Output0 a fno:Output ;
+    fno:predicate ex:_ ;
+    fno:type ex:any .
+
+ex:listcomp_1_loop_2Parameter0 a fno:Parameter ;
+    fno:predicate ex:x ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1_loop_2Parameter2 a fno:Parameter ;
+    fno:predicate ex:test ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:create_comp_3 a prov:Entity,
+        fno:Function ;
+    rdfs:label "create_comp_3" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 ex:create_comp_3Parameter0 ;
+            rdf:_2 ex:create_comp_3Parameter1 ;
+            rdf:_3 ex:create_comp_3Parameter2 ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 ex:create_comp_3Output ] .
+
+ex:listcomp_1_loop_2Parameter1 a fno:Parameter ;
+    fno:predicate ex:_ ;
+    fno:required true ;
+    fno:type ex:any .
+
+ex:listcomp_1 a prov:Entity,
+        fno:Function ;
+    rdfs:label "listcomp_1" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1Parameter0 ;
+            rdf:_2 ex:listcomp_1Parameter1 ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1Output0 ] .
+
+ex:listcomp_1_branch_3 a prov:Entity,
+        fno:Branch,
+        fno:Function ;
+    rdfs:label "listcomp_1_branch_3" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1_branch_3Parameter0 ;
+            rdf:_2 ex:listcomp_1_branch_3Parameter1 ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1_branch_3Output0 ] ;
+    fno:tests ex:listcomp_1_branch_3Test .
+
+ex:listcomp_1_loop_2 a prov:Entity,
+        fno:Function,
+        fno:Loop ;
+    rdfs:label "listcomp_1_loop_2" ;
+    fno:expects [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1_loop_2Parameter0 ;
+            rdf:_2 ex:listcomp_1_loop_2Parameter1 ;
+            rdf:_3 ex:listcomp_1_loop_2Parameter2 ] ;
+    fno:returns [ a rdf:Seq ;
+            rdf:_1 ex:listcomp_1_loop_2Output0 ] .
+

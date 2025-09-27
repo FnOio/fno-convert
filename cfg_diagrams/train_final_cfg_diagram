@@ -1,0 +1,31 @@
+digraph clustertrain_final {
+	graph [label=train_final]
+	3 [label="#3
+\"\"\"
+    Defines model hyperparameters and fit the model.
+    \"\"\"
+if hparams is None:
+"]
+	4 [label="#4
+hparams = {'embedding_dim': 27, 'projection_dim': 43, 'hidden_dim': 76,
+    'lr': 0.00487, 'dropout': 0.38886, 'aux_weight': 0.49631, 'margin': 
+    0.10025, 'weight_decay': 0.000115}
+"]
+	5 [label="#5
+model = LitNN(continuous_dim=X_num_train.shape[1], categorical_cardinality=
+    [len(t.classes_) for t in transformers], race_index=categorical_cols.
+    index('race_group'), **hparams)
+checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor='val_loss',
+    save_top_k=1)
+trainer = pl.Trainer(accelerator='cuda', max_epochs=100, log_every_n_steps=
+    6, callbacks=[checkpoint_callback, LearningRateMonitor(logging_interval
+    ='epoch'), TQDMProgressBar(), StochasticWeightAveraging(swa_lrs=1e-05,
+    swa_epoch_start=40, annealing_epochs=15)])
+trainer.fit(model, dl_train)
+trainer.test(model, dl_val)
+return model.eval()
+"]
+	4 -> 5 [label=""]
+	3 -> 4 [label="hparams is None"]
+	3 -> 5 [label="(hparams is not None)"]
+}

@@ -1,22 +1,51 @@
 digraph clustermain {
 	graph [label=main]
 	3 [label="#3
-output_dir = Path(output_dir)
-output_dir.mkdir(parents=True, exist_ok=True)
-data = read_csv(data_path).dropna(axis=1)
-encoder = LabelEncoder()
-data['prognosis'] = encoder.fit_transform(data['prognosis'])
-X = data.iloc[:, :-1]
-y = data.iloc[:, -1]
-svm_model = SVC()
-svm_model.fit(X, y)
-nb_model = GaussianNB()
-nb_model.fit(X, y)
-rf_model = RandomForestClassifier(random_state=18)
-rf_model.fit(X, y)
-dump(encoder, f'{output_dir}/encoder.pkl')
-dump(svm_model, f'{output_dir}/svm_model.pkl')
-dump(nb_model, f'{output_dir}/nb_model.pkl')
-dump(rf_model, f'{output_dir}/rf_model.pkl')
+\"\"\"
+    Main function to train the model.
+    The steps are as following :
+    * load data and fill efs and efs time for test data with 1
+    * initialize pred array with 0
+    * get categorical and numerical columns
+    * split the train data on the stratified criterion : race_group * newborns yes/no
+    * preprocess the fold data (create dataloaders)
+    * train the model and create final submission output
+    \"\"\"
+test, train_original = load_data()
+test['efs_time'] = 1
+test['efs'] = 1
+test_pred = np.zeros(test.shape[0])
+categorical_cols, numerical = get_feature_types(train_original)
+kf = StratifiedKFold(n_splits=5, shuffle=True)
 "]
+	4 [label="#4
+for i, split in enumerate(kf.split(train_original, train_original.
+"]
+	5 [label="#5
+train_index, test_index = split
+tt = train_original.copy()
+train = tt.iloc[train_index]
+val = tt.iloc[test_index]
+X_cat_val, X_num_train, X_num_val, dl_train, dl_val, transformers = (
+    preprocess_data(train, val))
+model = train_final(X_num_train, dl_train, dl_val, transformers,
+    categorical_cols=categorical_cols)
+train = tt.iloc[train_index]
+X_cat_val, X_num_train, X_num_val, dl_train, dl_val, transformers = (
+    preprocess_data(train, test))
+pred, _ = model.cuda().eval()(torch.tensor(X_cat_val, dtype=torch.long).
+    cuda(), torch.tensor(X_num_val, dtype=torch.float32).cuda())
+test_pred += pred.detach().cpu().numpy()
+"]
+	5 -> 4 [label=""]
+	4 -> 5 [label="enumerate(kf.split(train_original, train_original.race_group.astype(str) +
+    (train_original.age_at_hct == 0.044).astype(str)))"]
+	6 [label="#6
+subm_data = pd.read_csv('sample_submission.csv')
+subm_data['prediction'] = -test_pred
+subm_data.to_csv('submission.csv', index=False)
+return
+"]
+	4 -> 6 [label=""]
+	3 -> 4 [label=""]
 }

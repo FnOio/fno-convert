@@ -1,8 +1,0 @@
-digraph clusterpower_string {
-	graph [label=power_string]
-	3 [label="#3
-text = double_string(text)
-text = double_string(text)
-return text
-"]
-}

@@ -1,6 +1,0 @@
-digraph clustersum3 {
-	graph [label=sum3]
-	3 [label="#3
-return sum(sum(a, b), c)
-"]
-}

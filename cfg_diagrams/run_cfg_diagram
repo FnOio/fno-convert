@@ -1,36 +1,10 @@
-digraph clusterrun {
-	graph [label=run]
-	3 [label="#3
-conf = {'min_duration_s': 16, 'win_size_s': 15, 'frequency': 32, 'overlap':
-    0.5, 'amp_sdo': 0.2, 'amp_do': 0.1, 'amp_gn': 1.0}
-act_dict = {'Lying': 0, 'Running': 1, 'Sitting': 2, 'Standing': 3, 'Walking': 4
-    }
-act_dict_inverse = {}
+digraph cluster_ {
+	graph [label=_]
+	16 [label="#16
+filterwarnings('ignore')
+pl.seed_everything(42)
+hparams = None
+main(hparams)
+print('done')
 "]
-	4 [label="#4
-for key in act_dict.keys():
-"]
-	5 [label="#5
-act_dict_inverse[act_dict[key]] = key
-"]
-	5 -> 4 [label=""]
-	4 -> 5 [label="act_dict.keys()"]
-	6 [label="#6
-model = make_model(5, conf['amp_sdo'], conf['amp_do'], conf['amp_gn'])
-model.load_weights('nn_protego_full.h5')
-reader = pa.ipc.open_file('data/patient_1.feather')
-"]
-	7 [label="#7
-for i in range(reader.num_record_batches):
-"]
-	8 [label="#8
-df = reader.get_batch(i).to_pandas()
-i += 1
-controller(conf, act_dict_inverse, model, df)
-"]
-	8 -> 7 [label=""]
-	7 -> 8 [label="range(reader.num_record_batches)"]
-	6 -> 7 [label=""]
-	4 -> 6 [label=""]
-	3 -> 4 [label=""]
 }

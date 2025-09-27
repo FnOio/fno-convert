@@ -1,6 +1,0 @@
-digraph clustermy_sort {
-	graph [label=my_sort]
-	3 [label="#3
-return str(sorted(text))
-"]
-}

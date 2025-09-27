@@ -20,6 +20,7 @@ src/fno_convert/builders/python.py
 src/fno_convert/descriptors/__init__.py
 src/fno_convert/descriptors/docker.py
 src/fno_convert/descriptors/python.py
+src/fno_convert/descriptors/sequence.py
 src/fno_convert/elk/__init__.py
 src/fno_convert/elk/elk_layout.js
 src/fno_convert/elk/package-lock.json
@@ -44,9 +45,11 @@ src/fno_convert/model/composition.py
 src/fno_convert/model/function.py
 src/fno_convert/model/store.py
 src/fno_convert/util/__init__.py
+src/fno_convert/util/condition.py
 src/fno_convert/util/mapping.py
 src/fno_convert/util/prov.py
 src/fno_convert/util/std_kg.py
+src/fno_convert/util/controlflow/__init__.py
 src/fno_convert/util/file/__init__.py
 src/fno_convert/util/python/__init__.py
 src/fno_convert/util/python/ast.py

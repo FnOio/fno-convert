@@ -1,0 +1,20 @@
+digraph clusterpreprocess_data {
+	graph [label=preprocess_data]
+	3 [label="#3
+\"\"\"
+    Standardize numerical variables and transform (Label-encode) categoricals.
+    Fill NA values with mean for numerical.
+    Create torch dataloaders to prepare data for training and evaluation.
+    \"\"\"
+X_cat_train, X_cat_val, numerical, transformers = get_categoricals(train, val)
+scaler = StandardScaler()
+imp = SimpleImputer(missing_values=np.nan, strategy='mean', add_indicator=True)
+X_num_train = imp.fit_transform(train[numerical])
+X_num_train = scaler.fit_transform(X_num_train)
+X_num_val = imp.transform(val[numerical])
+X_num_val = scaler.transform(X_num_val)
+dl_train = init_dl(X_cat_train, X_num_train, train, training=True)
+dl_val = init_dl(X_cat_val, X_num_val, val)
+return X_cat_val, X_num_train, X_num_val, dl_train, dl_val, transformers
+"]
+}

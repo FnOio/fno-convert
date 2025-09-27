@@ -146,8 +146,8 @@ class PythonExecutor(Executer):
                 pass
                   
         # If there is a fun input, use the function object from that terminal's uri value
-        if fun.self_input is not None:
-            fun.f_object = getattr(fun.self_input.value, fun.name, None)
+        if fun.context_input is not None:
+            fun.f_object = getattr(fun.context_input.value, fun.name, None)
         
         # Only execute when there is a function object
         if fun.f_object is not None:
@@ -177,7 +177,7 @@ class PythonExecutor(Executer):
             args = [ x[1] for x in sorted(args, key=lambda x: x[0])]
 
             # Remove the fun parameter as we already have the method object
-            if fun.self_input is not None:
+            if fun.context_input is not None:
                 if 'fun' in keyargs:
                     del keyargs['fun']
                 else:
@@ -189,8 +189,8 @@ class PythonExecutor(Executer):
                 fun.prov.endedAt = datetime.now()
                 
                 fun.output.set(ret)
-                if fun.self_output is not None:
-                    fun.self_output.set(fun.self_input.get())
+                if fun.context_output is not None:
+                    fun.context_output.set(fun.context_input.get())
             except StopIteration as e:
                 fun.stop_iteration = True
             except Exception as e:

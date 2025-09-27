@@ -1,3 +1,3 @@
-from .dockerfile import DockerfileExecutor
-from .dockerimage import DockerImageExecutor
-from .dockercontainer import DockerContainerExecuter
+from .file import DockerfileExecutor
+from .image import DockerImageExecutor
+from .container import DockerContainerExecuter

@@ -1,0 +1,20 @@
+digraph clusterlistcomp_1 {
+	graph [label=listcomp_1]
+	1 [label="#1
+_ = []
+"]
+	2 [label="#2
+for i, col in enumerate(train.columns):
+"]
+	3 [label="#3
+if (train[col].dtype == 'object') | (2 < train[col].nunique() < 25):_.append(
+"]
+	3 -> 2 [label="(not (train[col].dtype == 'object') | (2 < train[col].nunique() < 25))"]
+	3 -> 2 [label="(train[col].dtype == 'object') | (2 < train[col].nunique() < 25)"]
+	2 -> 3 [label="enumerate(train.columns)"]
+	4 [label="#4
+return _
+"]
+	2 -> 4 [label=""]
+	1 -> 2 [label=""]
+}
